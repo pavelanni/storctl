@@ -1,0 +1,10 @@
+provider:
+  token: "your-provider-token-here"
+
+dns:
+  token: "your-dns-token-here"
+  zone_id: "your-zone-id-here"
+
+email: "your-email@example.com"
+organization: "your-organization-name"
+owner: "your-name"
