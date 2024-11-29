@@ -16,13 +16,16 @@ type Config struct {
 
 type ProviderConfig struct {
 	Name        string            `mapstructure:"name"`
+	Location    string            `mapstructure:"location"`
 	Token       string            `mapstructure:"token"`
 	Credentials map[string]string `mapstructure:"credentials"`
 }
 
 type DNSConfig struct {
-	Token  string `mapstructure:"token"`
-	ZoneID string `mapstructure:"zone_id"`
+	Provider string `mapstructure:"provider"`
+	Domain   string `mapstructure:"domain"`
+	Token    string `mapstructure:"token"`
+	ZoneID   string `mapstructure:"zone_id"`
 }
 
 // LoadConfig reads configuration from file and environment variables
@@ -68,6 +71,14 @@ func LoadConfig(configPath string) (*Config, error) {
 	if config.Email == "" {
 		return nil, fmt.Errorf("Email is not set in the config file")
 	}
+	if config.Provider.Location == "" {
+		return nil, fmt.Errorf("Location is not set in the config file")
+	}
+	if config.Provider.Name == "" {
+		return nil, fmt.Errorf("Provider is not set in the config file")
+	}
+	// DEBUG
+	fmt.Printf("config: %+v\n", config)
 	return &config, nil
 }
 

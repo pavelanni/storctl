@@ -3,58 +3,62 @@ package hetzner
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
+	"github.com/pavelanni/labshop/internal/provider/options"
 	"github.com/pavelanni/labshop/internal/types"
 	"github.com/pavelanni/labshop/internal/util/timeutil"
 )
 
-func (p *HetznerProvider) CreateServer(name string, serverType string, image string, location string, sshKeyNames []string, labels map[string]string) (*types.Server, error) {
-	// DEBUG
-	fmt.Printf("Creating server %s with type %s, image %s, location %s, ssh keys %v\n", name, serverType, image, location, sshKeyNames)
+func (p *HetznerProvider) CreateServer(opts options.ServerCreateOpts) (*types.Server, error) {
+	serverOpts := hcloud.ServerCreateOpts{
+		Name:       opts.Name,
+		ServerType: &hcloud.ServerType{Name: opts.Type},
+		Image:      &hcloud.Image{Name: opts.Image},
+		Location:   &hcloud.Location{Name: opts.Location},
+		Labels:     opts.Labels,
+		UserData:   opts.UserData,
+	}
+	sshKeyNames := make([]string, 0)
+	for _, sshKey := range opts.SSHKeys {
+		sshKeyNames = append(sshKeyNames, sshKey.ObjectMeta.Name)
+	}
+	p.logger.Info("creating server",
+		"name", opts.Name,
+		"type", opts.Type,
+		"image", opts.Image,
+		"location", opts.Location,
+		"ssh_keys", sshKeyNames)
 	hCloudSSHKeys := make([]*hcloud.SSHKey, 0)
-	for _, sshKeyName := range sshKeyNames {
-		sshKey, _, err := p.Client.SSHKey.GetByName(context.Background(), sshKeyName)
+	for _, sshKey := range opts.SSHKeys {
+		hCloudKey, _, err := p.Client.SSHKey.Get(context.Background(), sshKey.ObjectMeta.Name)
 		if err != nil {
-			p.logger.Info("SSH key not found, skipping",
-				"key", sshKeyName)
-			continue
+			return nil, err
 		}
-		hCloudSSHKeys = append(hCloudSSHKeys, sshKey)
+		hCloudSSHKeys = append(hCloudSSHKeys, hCloudKey)
 	}
 	if len(hCloudSSHKeys) == 0 {
 		return nil, fmt.Errorf("no SSH keys provided")
 	}
+	serverOpts.SSHKeys = hCloudSSHKeys
 	p.logger.Info("creating server",
-		"name", name,
-		"type", serverType,
-		"image", image,
-		"location", location,
+		"name", opts.Name,
+		"type", opts.Type,
+		"image", opts.Image,
+		"location", opts.Location,
 		"ssh_keys", sshKeyNames)
-	server, _, err := p.Client.Server.Create(context.Background(), hcloud.ServerCreateOpts{
-		Name: name,
-		ServerType: &hcloud.ServerType{
-			Name: serverType,
-		},
-		Image: &hcloud.Image{
-			Name: image,
-		},
-		Location: &hcloud.Location{
-			Name: location,
-		},
-		SSHKeys: hCloudSSHKeys,
-		Labels:  labels,
-	})
+	server, _, err := p.Client.Server.Create(context.Background(), serverOpts)
 	if err != nil {
 		return nil, err
 	}
 	p.logger.Info("successfully created server",
-		"name", name,
+		"name", opts.Name,
 		"ip", server.Server.PublicNet.IPv4.IP)
+
 	return mapServer(server.Server, p.Client), nil
 }
+
 func (p *HetznerProvider) GetServer(serverName string) (*types.Server, error) {
 	server, _, err := p.Client.Server.Get(context.Background(), serverName)
 	if err != nil {
@@ -113,19 +117,31 @@ func mapServer(s *hcloud.Server, client *hcloud.Client) *types.Server {
 	}
 
 	return &types.Server{
-		ID:          strconv.FormatInt(s.ID, 10),
-		Name:        s.Name,
-		Status:      string(s.Status),
-		Type:        s.ServerType.Name,
-		Owner:       s.Labels["owner"],
-		Cores:       s.ServerType.Cores,
-		Memory:      float32(s.ServerType.Memory),
-		Disk:        s.ServerType.Disk,
-		Location:    s.Datacenter.Location.Name,
-		Labels:      s.Labels,
-		Volumes:     mapVolumes(s.Volumes, client),
-		Created:     s.Created,
-		DeleteAfter: timeutil.ParseDeleteAfter(s.Labels["delete_after"]),
+		TypeMeta: types.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Server",
+		},
+		ObjectMeta: types.ObjectMeta{
+			Name:   s.Name,
+			Labels: s.Labels,
+		},
+		Spec: types.ServerSpec{
+			Type:     s.ServerType.Name,
+			Location: s.Datacenter.Location.Name,
+			Labels:   s.Labels,
+			Volumes:  mapVolumes(s.Volumes, client),
+			TTL:      s.Labels["ttl"],
+		},
+		Status: types.ServerStatus{
+			Status:      string(s.Status),
+			Owner:       s.Labels["owner"],
+			Cores:       s.ServerType.Cores,
+			Memory:      s.ServerType.Memory,
+			Disk:        s.ServerType.Disk,
+			PublicNet:   mapPublicNet(&s.PublicNet),
+			Created:     s.Created,
+			DeleteAfter: timeutil.ParseDeleteAfter(s.Labels["delete_after"]),
+		},
 	}
 }
 
@@ -140,4 +156,16 @@ func mapServers(servers []*hcloud.Server, client *hcloud.Client) []*types.Server
 		result[i] = mapServer(s, client)
 	}
 	return result
+}
+
+func mapPublicNet(publicNet *hcloud.ServerPublicNet) *types.PublicNet {
+	if publicNet == nil {
+		return nil
+	}
+	ipv4 := publicNet.IPv4.IP.String()
+	return &types.PublicNet{
+		IPv4: &struct {
+			IP string `json:"ip"`
+		}{IP: ipv4},
+	}
 }

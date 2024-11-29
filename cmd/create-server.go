@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/pavelanni/labshop/internal/config"
+	"github.com/pavelanni/labshop/internal/logger"
+	"github.com/pavelanni/labshop/internal/provider/options"
 	"github.com/pavelanni/labshop/internal/types"
 	"github.com/pavelanni/labshop/internal/util/labelutil"
 	"github.com/pavelanni/labshop/internal/util/timeutil"
@@ -26,8 +28,28 @@ func NewCreateServerCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			serverName := args[0]
-			_, err := providerSvc.CreateServer(serverName, serverType, image, location, sshKeyNames, labels)
-			return err
+			server := &types.Server{
+				TypeMeta: types.TypeMeta{
+					Kind:       "Server",
+					APIVersion: "v1",
+				},
+				ObjectMeta: types.ObjectMeta{
+					Name:   serverName,
+					Labels: labels,
+				},
+				Spec: types.ServerSpec{
+					Type:        serverType,
+					Image:       image,
+					Location:    location,
+					SSHKeyNames: sshKeyNames,
+				},
+			}
+			result, err := createServer(server)
+			if err != nil {
+				return err
+			}
+			logger.Info("Server created successfully", "server", result.ObjectMeta.Name)
+			return nil
 		},
 	}
 
@@ -44,66 +66,66 @@ func NewCreateServerCmd() *cobra.Command {
 	return cmd
 }
 
-func createServer(server *types.Resource) error {
+func createServer(server *types.Server) (*types.Server, error) {
 	// Access fields using map syntax
 	fmt.Printf("Creating server %s with type %s, image %s, location %s, ssh keys %v\n",
-		server.Metadata["name"],
-		server.Spec["serverType"],
-		server.Spec["image"],
-		server.Spec["location"],
-		server.Spec["keys"])
-
-	keyNames := []string{}
-	if keysInterface, ok := server.Spec["keys"]; ok {
-		if keysSlice, ok := keysInterface.([]any); ok {
-			for _, key := range keysSlice {
-				if keyMap, ok := key.(map[string]any); ok {
-					if name, ok := keyMap["name"]; ok {
-						keyNames = append(keyNames, name.(string))
-					}
-				}
-			}
-		}
-	}
+		server.ObjectMeta.Name,
+		server.Spec.Type,
+		server.Spec.Image,
+		server.Spec.Location,
+		server.Spec.SSHKeyNames)
 
 	ttl := config.DefaultTTL
-	if ttlInterface, ok := server.Spec["ttl"]; ok {
-		if ttlStr, ok := ttlInterface.(string); ok {
-			ttl = ttlStr
-		}
+	if server.Spec.TTL != "" {
+		ttl = server.Spec.TTL
 	}
 
-	stringLabels := make(map[string]string)
-	if labelsInterface, ok := server.Metadata["labels"]; ok {
-		if labels, ok := labelsInterface.(map[string]interface{}); ok {
-			for k, v := range labels {
-				stringLabels[k] = fmt.Sprint(v)
-			}
-		}
-	}
-	stringLabels["delete_after"] = timeutil.FormatDeleteAfter(timeutil.TtlToDeleteAfter(ttl))
-	stringLabels["owner"] = labelutil.SanitizeValue(cfg.Owner)
+	labels := server.ObjectMeta.Labels
+	labels["delete_after"] = timeutil.FormatDeleteAfter(timeutil.TtlToDeleteAfter(ttl))
+	labels["owner"] = labelutil.SanitizeValue(cfg.Owner)
 
-	// DEBUG
-	fmt.Printf("Creating SSH keys %v\n", keyNames)
-	for _, key := range keyNames {
-		err := createKey(&types.Resource{
-			Metadata: map[string]any{
-				"name":   key,
-				"labels": stringLabels,
-			},
-		})
+	sshKeys := make([]*types.SSHKey, 0)
+	for _, sshKeyName := range server.Spec.SSHKeyNames {
+		keyExists, err := providerSvc.KeyExists(sshKeyName)
 		if err != nil {
-			return err
+			return nil, err
+		}
+		if !keyExists { // Key not found, create it
+			logger.Info("SSH key not found, creating",
+				"key", sshKeyName)
+			newKey, err := createKey(&types.SSHKey{
+				TypeMeta: types.TypeMeta{
+					Kind: "SSHKey",
+				},
+				ObjectMeta: types.ObjectMeta{
+					Name:   sshKeyName,
+					Labels: labels,
+				},
+			})
+			if err != nil {
+				return nil, err
+			}
+			sshKeys = append(sshKeys, newKey)
+		} else {
+			providerKey, err := providerSvc.GetSSHKey(sshKeyName)
+			if err != nil {
+				return nil, err
+			}
+			sshKeys = append(sshKeys, providerKey)
 		}
 	}
-	_, err := providerSvc.CreateServer(
-		server.Metadata["name"].(string),
-		server.Spec["serverType"].(string),
-		server.Spec["image"].(string),
-		server.Spec["location"].(string),
-		keyNames,
-		stringLabels,
-	)
-	return err
+
+	cloudInitUserData := fmt.Sprintf(config.DefaultCloudInitUserData, sshKeys[0].Spec.PublicKey)
+	logger.Info("cloud-init user data", "data", cloudInitUserData)
+	result, err := providerSvc.CreateServer(options.ServerCreateOpts{
+		Name:     server.ObjectMeta.Name,
+		Type:     server.Spec.Type,
+		Image:    server.Spec.Image,
+		Location: server.Spec.Location,
+		SSHKeys:  sshKeys,
+		Labels:   labels,
+		UserData: cloudInitUserData,
+	})
+
+	return result, err
 }

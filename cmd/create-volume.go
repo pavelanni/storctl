@@ -3,7 +3,11 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/pavelanni/labshop/internal/config"
+	"github.com/pavelanni/labshop/internal/provider/options"
 	"github.com/pavelanni/labshop/internal/types"
+	"github.com/pavelanni/labshop/internal/util/labelutil"
+	"github.com/pavelanni/labshop/internal/util/timeutil"
 	"github.com/spf13/cobra"
 )
 
@@ -22,8 +26,24 @@ func NewCreateVolumeCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			volumeName := args[0]
-			_, err := providerSvc.CreateVolume(volumeName, size, server, labels, automount, format)
-			return err
+			volume := &types.Volume{
+				TypeMeta: types.TypeMeta{
+					Kind:       "Volume",
+					APIVersion: "v1",
+				},
+				ObjectMeta: types.ObjectMeta{
+					Name:   volumeName,
+					Labels: labels,
+				},
+				Spec: types.VolumeSpec{
+					Size:      size,
+					ServerID:  server,
+					Labels:    labels,
+					Automount: automount,
+					Format:    format,
+				},
+			}
+			return createVolume(volume)
 		},
 	}
 
@@ -39,30 +59,34 @@ func NewCreateVolumeCmd() *cobra.Command {
 	return cmd
 }
 
-func createVolume(volume *types.Resource) error {
+func createVolume(volume *types.Volume) error {
 	fmt.Printf("Creating volume %s with size %d\n",
-		volume.Metadata["name"],
-		volume.Spec["size"])
-	if volume.Spec["server"] != nil {
-		fmt.Printf("  server: %s\n", volume.Spec["server"])
+		volume.ObjectMeta.Name,
+		volume.Spec.Size)
+	if volume.Spec.ServerID != "" {
+		fmt.Printf("  server: %s\n", volume.Spec.ServerID)
 	}
-	if volume.Spec["automount"] != nil {
-		fmt.Printf("  automount: %t\n", volume.Spec["automount"])
+	if volume.Spec.Automount {
+		fmt.Printf("  automount: %t\n", volume.Spec.Automount)
 	}
-	if volume.Spec["format"] != nil {
-		fmt.Printf("  format: %s\n", volume.Spec["format"])
+	if volume.Spec.Format != "" {
+		fmt.Printf("  format: %s\n", volume.Spec.Format)
 	}
-	labels := make(map[string]string)
-	for k, v := range volume.Metadata["labels"].(map[string]interface{}) {
-		labels[k] = v.(string)
+	labels := volume.ObjectMeta.Labels
+	ttl := volume.Spec.TTL
+	if ttl == "" {
+		ttl = config.DefaultTTL
 	}
-	_, err := providerSvc.CreateVolume(
-		volume.Metadata["name"].(string),
-		int(volume.Spec["size"].(float64)),
-		volume.Spec["server"].(string),
-		labels,
-		volume.Spec["automount"].(bool),
-		volume.Spec["format"].(string),
-	)
+	labels["delete_after"] = timeutil.FormatDeleteAfter(timeutil.TtlToDeleteAfter(ttl))
+	labels["owner"] = labelutil.SanitizeValue(cfg.Owner)
+
+	_, err := providerSvc.CreateVolume(options.VolumeCreateOpts{
+		Name:       volume.ObjectMeta.Name,
+		Size:       volume.Spec.Size,
+		ServerName: volume.Spec.ServerName,
+		Labels:     labels,
+		Automount:  volume.Spec.Automount,
+		Format:     volume.Spec.Format,
+	})
 	return err
 }

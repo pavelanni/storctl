@@ -9,7 +9,15 @@ func (p *HetznerProvider) CreateLab(name string, template string) error {
 }
 
 func (p *HetznerProvider) GetLab(labName string) (*types.Lab, error) {
-	lab := &types.Lab{Name: labName}
+	lab := &types.Lab{
+		TypeMeta: types.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Lab",
+		},
+		ObjectMeta: types.ObjectMeta{
+			Name: labName,
+		},
+	}
 
 	servers, err := p.AllServers()
 	if err != nil {
@@ -27,14 +35,14 @@ func (p *HetznerProvider) GetLab(labName string) (*types.Lab, error) {
 		if labName != lab.Name {
 			continue
 		}
-		lab.Servers = append(lab.Servers, server)
+		lab.Status.Servers = append(lab.Status.Servers, server)
 	}
 	for _, volume := range volumes {
 		labName := volume.Labels["lab_name"]
 		if labName != lab.Name {
 			continue
 		}
-		lab.Volumes = append(lab.Volumes, volume)
+		lab.Status.Volumes = append(lab.Status.Volumes, volume)
 	}
 	return lab, nil
 }
@@ -63,11 +71,11 @@ func (p *HetznerProvider) DeleteLab(labName string, force bool) error {
 
 	p.logger.Info("deleting lab",
 		"lab", lab.Name,
-		"servers", len(lab.Servers),
-		"volumes", len(lab.Volumes))
+		"servers", len(lab.Spec.Servers),
+		"volumes", len(lab.Spec.Volumes))
 
 	// Delete volumes first
-	for _, volume := range lab.Volumes {
+	for _, volume := range lab.Spec.Volumes {
 		p.logger.Info("deleting volume",
 			"volume", volume.Name)
 		if err := p.DeleteVolume(volume.Name, force); err != nil {
@@ -79,7 +87,7 @@ func (p *HetznerProvider) DeleteLab(labName string, force bool) error {
 	}
 
 	// Delete servers
-	for _, server := range lab.Servers {
+	for _, server := range lab.Spec.Servers {
 		p.logger.Info("deleting server",
 			"server", server.Name)
 		if err := p.DeleteServer(server.Name, force); err != nil {

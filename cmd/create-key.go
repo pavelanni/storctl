@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 
 	"github.com/pavelanni/labshop/internal/config"
+	"github.com/pavelanni/labshop/internal/logger"
+	"github.com/pavelanni/labshop/internal/provider/options"
 	"github.com/pavelanni/labshop/internal/types"
 	"github.com/pavelanni/labshop/internal/util/labelutil"
 	"github.com/pavelanni/labshop/internal/util/timeutil"
@@ -21,7 +23,6 @@ import (
 func NewCreateKeyCmd() *cobra.Command {
 	var labels map[string]string
 	var ttl string
-	var keyResource *types.Resource
 
 	cmd := &cobra.Command{
 		Use: "key [name]",
@@ -30,22 +31,109 @@ func NewCreateKeyCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			keyName := args[0]
-			keyResource = &types.Resource{
-				Metadata: map[string]interface{}{
-					"name":   keyName,
-					"labels": labels,
+			keyResource := &types.SSHKey{
+				TypeMeta: types.TypeMeta{
+					APIVersion: "v1",
+					Kind:       "SSHKey",
 				},
-				Spec: map[string]interface{}{
-					"ttl": ttl,
+				ObjectMeta: types.ObjectMeta{
+					Name:   keyName,
+					Labels: labels,
 				},
 			}
-			return createKey(keyResource)
+			key, err := createKey(keyResource)
+			if err != nil {
+				return err
+			}
+			logger.Info("SSH key created successfully",
+				"key", key.ObjectMeta.Name)
+			return nil
 		},
 	}
 
 	cmd.Flags().StringToStringVar(&labels, "labels", map[string]string{}, "SSH key labels")
 	cmd.Flags().StringVar(&ttl, "ttl", config.DefaultTTL, "Time to live for the key")
 	return cmd
+}
+
+func createKey(key *types.SSHKey) (*types.SSHKey, error) {
+	keyName := key.ObjectMeta.Name
+	if keyName == "" {
+		return nil, fmt.Errorf("key name is required")
+	}
+
+	// Check if key already exists locally
+	keysDir := filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, config.KeysDir)
+	localKeyPath := filepath.Join(keysDir, keyName)
+	if _, err := os.Stat(localKeyPath); err == nil {
+		return nil, fmt.Errorf("key %s already exists locally at %s", keyName, localKeyPath)
+	}
+
+	// Check if key already exists on the provider
+	exists, err := providerSvc.KeyExists(keyName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check if key exists on provider: %w", err)
+	}
+	if exists {
+		return nil, fmt.Errorf("key %s already exists on the provider", keyName)
+	}
+
+	fmt.Printf("Creating key %s\n", keyName)
+	labels := key.ObjectMeta.Labels
+	var ttl string
+	if key.Spec.TTL == "" {
+		ttl = config.DefaultTTL
+	} else {
+		ttl = key.Spec.TTL
+	}
+	labels["delete_after"] = timeutil.FormatDeleteAfter(timeutil.TtlToDeleteAfter(ttl))
+	labels["owner"] = labelutil.SanitizeValue(cfg.Owner)
+	pubKeyString := key.Spec.PublicKey
+	// If public key is not provided, generate a new key pair
+	if pubKeyString == "" {
+		// Generate the key pair
+		pubKey, privKey, err := generateED25519KeyPair(keyName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate key pair: %w", err)
+		}
+
+		// Save the keys locally
+		keysDir := filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, config.KeysDir)
+		if err := os.MkdirAll(keysDir, 0700); err != nil {
+			return nil, fmt.Errorf("failed to create keys directory: %w", err)
+		}
+
+		// Save private key
+		privKeyPath := filepath.Join(keysDir, keyName)
+		if err := os.WriteFile(privKeyPath, privKey, 0600); err != nil {
+			return nil, fmt.Errorf("failed to save private key: %w", err)
+		}
+
+		// Save public key
+		pubKeyPath := filepath.Join(keysDir, keyName+".pub")
+		if err := os.WriteFile(pubKeyPath, pubKey, 0644); err != nil {
+			return nil, fmt.Errorf("failed to save public key: %w", err)
+		}
+		pubKeyString = string(pubKey)
+		logger.Info("SSH key pair created successfully",
+			"private_key", privKeyPath,
+			"public_key", pubKeyPath)
+		key.Spec.PublicKey = pubKeyString
+	}
+
+	// Upload public key to provider
+	key, err = providerSvc.CreateSSHKey(options.SSHKeyCreateOpts{
+		Name:      keyName,
+		PublicKey: pubKeyString,
+		Labels:    labels,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to upload public key: %w", err)
+	}
+
+	logger.Info("SSH key uploaded to provider",
+		"key", keyName)
+	return key, nil
 }
 
 // generateED25519KeyPair generates a new ED25519 keypair.
@@ -83,83 +171,4 @@ func generateED25519KeyPair(comment string) (publicKey, privateKey []byte, err e
 	}
 
 	return []byte(pubKey), privateKey, nil
-}
-
-func createKey(key *types.Resource) error {
-	keyName, ok := key.Metadata["name"].(string)
-	if !ok {
-		return fmt.Errorf("key name is required")
-	}
-
-	// Check if key already exists locally
-	keysDir := filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, config.KeysDir)
-	localKeyPath := filepath.Join(keysDir, keyName)
-	if _, err := os.Stat(localKeyPath); err == nil {
-		return fmt.Errorf("key %s already exists locally at %s", keyName, localKeyPath)
-	}
-
-	// Check if key already exists on the provider
-	exists, err := providerSvc.KeyExists(keyName)
-	if err != nil {
-		return fmt.Errorf("failed to check if key exists on provider: %w", err)
-	}
-	if exists {
-		return fmt.Errorf("key %s already exists on the provider", keyName)
-	}
-
-	fmt.Printf("Creating key %s\n", keyName)
-	stringLabels := make(map[string]string)
-	if labelsInterface, ok := key.Metadata["labels"]; ok {
-		if labels, ok := labelsInterface.(map[string]interface{}); ok {
-			for k, v := range labels {
-				stringLabels[k] = fmt.Sprint(v)
-			}
-		}
-	}
-	ttl, ok := key.Spec["ttl"].(string)
-	if !ok {
-		ttl = "1h"
-	}
-	stringLabels["delete_after"] = timeutil.FormatDeleteAfter(timeutil.TtlToDeleteAfter(ttl))
-	stringLabels["owner"] = labelutil.SanitizeValue(cfg.Owner)
-	pubKeyString, ok := key.Spec["publicKey"].(string)
-	// If public key is not provided, generate a new key pair
-	if !ok {
-		// Generate the key pair
-		pubKey, privKey, err := generateED25519KeyPair(keyName)
-		if err != nil {
-			return fmt.Errorf("failed to generate key pair: %w", err)
-		}
-
-		// Save the keys locally
-		keysDir := filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, config.KeysDir)
-		if err := os.MkdirAll(keysDir, 0700); err != nil {
-			return fmt.Errorf("failed to create keys directory: %w", err)
-		}
-
-		// Save private key
-		privKeyPath := filepath.Join(keysDir, keyName)
-		if err := os.WriteFile(privKeyPath, privKey, 0600); err != nil {
-			return fmt.Errorf("failed to save private key: %w", err)
-		}
-
-		// Save public key
-		pubKeyPath := filepath.Join(keysDir, keyName+".pub")
-		if err := os.WriteFile(pubKeyPath, pubKey, 0644); err != nil {
-			return fmt.Errorf("failed to save public key: %w", err)
-		}
-		pubKeyString = string(pubKey)
-		fmt.Printf("SSH key pair created successfully:\n")
-		fmt.Printf("Private key: %s\n", privKeyPath)
-		fmt.Printf("Public key: %s\n", pubKeyPath)
-	}
-
-	// Upload public key to provider
-	_, err = providerSvc.CreateSSHKey(keyName, pubKeyString, stringLabels)
-	if err != nil {
-		return fmt.Errorf("failed to upload public key: %w", err)
-	}
-
-	fmt.Printf("Public key uploaded to provider as: %s\n", keyName)
-	return nil
 }

@@ -1,23 +1,38 @@
 apiVersion: v1
 kind: Lab
 metadata:
-  name: my-lab
+  name: aistor-lab
   labels:
-    project: security-training
+    project: aistor
 spec:
+  ttl: 24h
+  provider: hetzner
+  location: nbg1
   servers:
-  - name: master
-    provider: hetzner
-    location: nbg1
-    serverType: cx31
-    ttl: 48h
+  - name: cp
+    type: cx22
+    image: ubuntu-24.04
+  - name: node-01
+    type: cx22
     image: ubuntu-24.04
   volumes:
-  - name: data
-    size: 100GB
-    location: nbg1
-    ttl: 48h
-  keys:
-  - name: ssh-key
-    type: ssh
-    ttl: 48h
+  - name: volume-01
+    server: node-01
+    size: 100
+    automount: false
+    format: xfs
+  - name: volume-02
+    server: node-01
+    size: 100
+    automount: false
+    format: xfs
+  - name: volume-03
+    server: node-01
+    size: 100
+    automount: false
+    format: xfs
+  - name: volume-04
+    server: node-01
+    size: 100
+    automount: false
+    format: xfs

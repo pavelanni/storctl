@@ -37,15 +37,15 @@ func listVolumes() error {
 	fmt.Fprintln(w, "NAME\tSERVER\tSIZE\tOWNER\tAGE\tDELETE AFTER")
 	for _, volume := range volumes {
 		deleteAfter := "-"
-		if !volume.DeleteAfter.IsZero() {
-			deleteAfter = volume.DeleteAfter.Format(time.RFC3339)
+		if !volume.Status.DeleteAfter.IsZero() {
+			deleteAfter = volume.Status.DeleteAfter.Format(time.RFC3339)
 		}
 		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\n",
 			volume.Name,
-			volume.ServerName,
-			volume.Size,
-			volume.Owner,
-			timeutil.FormatAge(volume.Created),
+			volume.Spec.ServerName,
+			volume.Spec.Size,
+			volume.Status.Owner,
+			timeutil.FormatAge(volume.Status.Created),
 			deleteAfter)
 	}
 	return w.Flush()
@@ -60,15 +60,15 @@ func getVolume(volumeID string) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "NAME\tSERVER\tSIZE\tOWNER\tAGE\tDELETE AFTER")
 	deleteAfter := "-"
-	if !volume.DeleteAfter.IsZero() {
-		deleteAfter = volume.DeleteAfter.Format(time.RFC3339)
+	if !volume.Status.DeleteAfter.IsZero() {
+		deleteAfter = volume.Status.DeleteAfter.Format(time.RFC3339)
 	}
 	fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\n",
 		volume.Name,
-		volume.ServerName,
-		volume.Size,
-		volume.Owner,
-		timeutil.FormatAge(volume.Created),
+		volume.Spec.ServerName,
+		volume.Spec.Size,
+		volume.Status.Owner,
+		timeutil.FormatAge(volume.Status.Created),
 		deleteAfter)
 	return w.Flush()
 }

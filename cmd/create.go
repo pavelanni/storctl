@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -67,14 +68,58 @@ func createFromFile(filename string) error {
 func processResource(resource *types.Resource) error {
 	switch resource.Kind {
 	case "Server":
-		return createServer(resource)
+		server := types.Server{
+			TypeMeta:   resource.TypeMeta,
+			ObjectMeta: resource.ObjectMeta,
+		}
+		// Convert map[string]interface{} to ServerSpec using json marshaling
+		if err := convertToStruct(resource.Spec, &server.Spec); err != nil {
+			return fmt.Errorf("error parsing Server spec: %w", err)
+		}
+		_, err := createServer(&server)
+		return err
 	case "Volume":
-		return createVolume(resource)
+		volume := types.Volume{
+			TypeMeta:   resource.TypeMeta,
+			ObjectMeta: resource.ObjectMeta,
+		}
+		if err := convertToStruct(resource.Spec, &volume.Spec); err != nil {
+			return fmt.Errorf("error parsing Volume spec: %w", err)
+		}
+		return createVolume(&volume)
 	case "Key":
-		return createKey(resource)
+		key := types.SSHKey{
+			TypeMeta:   resource.TypeMeta,
+			ObjectMeta: resource.ObjectMeta,
+		}
+		if err := convertToStruct(resource.Spec, &key.Spec); err != nil {
+			return fmt.Errorf("error parsing Key spec: %w", err)
+		}
+		_, err := createKey(&key)
+		return err
 	case "Lab":
-		return createLab(resource)
+		lab := &types.Lab{
+			TypeMeta:   resource.TypeMeta,
+			ObjectMeta: resource.ObjectMeta,
+		}
+		if err := convertToStruct(resource.Spec, &lab.Spec); err != nil {
+			return fmt.Errorf("error parsing Lab spec: %w", err)
+		}
+		_, err := createLab(lab)
+		if err != nil {
+			return err
+		}
+		return nil
 	default:
 		return fmt.Errorf("unknown resource kind: %s", resource.Kind)
 	}
+}
+
+// Helper function to convert map[string]interface{} to a struct
+func convertToStruct(in interface{}, out interface{}) error {
+	jsonBytes, err := json.Marshal(in)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(jsonBytes, out)
 }

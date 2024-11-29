@@ -7,38 +7,85 @@ import (
 	"time"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
+	"github.com/pavelanni/labshop/internal/provider/options"
 	"github.com/pavelanni/labshop/internal/types"
 	"github.com/pavelanni/labshop/internal/util/timeutil"
 )
 
-func (p *HetznerProvider) CreateVolume(name string, size int, server string, labels map[string]string, automount bool, format string) (*types.Volume, error) {
-	hCloudServer := &hcloud.Server{}
+func (p *HetznerProvider) CreateVolume(opts options.VolumeCreateOpts) (*types.Volume, error) {
+	var hCloudServer *hcloud.Server
+	var hCloudLocation *hcloud.Location
 	var err error
-	if server != "" {
-		hCloudServer, _, err = p.Client.Server.GetByName(context.Background(), server)
+	if opts.ServerName == "" {
+		if opts.Location == "" {
+			return nil, fmt.Errorf("location is required when server name is empty")
+		}
+		p.logger.Info("server name is empty, using location instead",
+			"location", opts.Location)
+	} else {
+		hCloudServer, _, err = p.Client.Server.GetByName(context.Background(), opts.ServerName)
 		if err != nil {
 			return nil, err
 		}
+		if hCloudServer == nil {
+			return nil, fmt.Errorf("server not found: %s", opts.ServerName)
+		}
+		location := hCloudServer.Datacenter.Location.Name
+		if location == "" {
+			return nil, fmt.Errorf("server %s has no location", opts.ServerName)
+		}
+		hCloudLocation, _, err = p.Client.Location.GetByName(context.Background(), location)
+		if err != nil {
+			return nil, err
+		}
+		if hCloudLocation == nil {
+			return nil, fmt.Errorf("location not found: %s", location)
+		}
+	}
+	volumeOpts := hcloud.VolumeCreateOpts{
+		Name:      opts.Name,
+		Size:      opts.Size,
+		Server:    hCloudServer,
+		Labels:    opts.Labels,
+		Automount: &opts.Automount,
+		Format:    &opts.Format,
 	}
 	p.logger.Info("creating volume",
-		"name", name,
-		"size", size,
-		"server", server,
-		"automount", automount,
-		"format", format)
-	volume, _, err := p.Client.Volume.Create(context.Background(), hcloud.VolumeCreateOpts{
-		Name:      name,
-		Size:      size,
-		Server:    hCloudServer,
-		Automount: &automount,
-		Format:    &format,
-	})
+		"name", volumeOpts.Name,
+		"size", volumeOpts.Size,
+		"server", volumeOpts.Server.Name,
+		"automount", *volumeOpts.Automount,
+		"format", *volumeOpts.Format)
+
+	volume, _, err := p.Client.Volume.Create(context.Background(), volumeOpts)
 	if err != nil {
 		return nil, err
 	}
 	p.logger.Info("successfully created volume",
-		"name", name)
+		"name", volumeOpts.Name)
 	return mapVolume(volume.Volume, p.Client), nil
+}
+
+func (p *HetznerProvider) AttachVolume(volumeName, serverName string) error {
+	volume, _, err := p.Client.Volume.Get(context.Background(), volumeName)
+	if err != nil {
+		return err
+	}
+	if volume == nil {
+		return fmt.Errorf("volume not found: %s", volumeName)
+	}
+	if volume.Server != nil {
+		return fmt.Errorf("volume already attached to server: %s", volume.Server.Name)
+	}
+	hCloudServer, _, err := p.Client.Server.GetByName(context.Background(), serverName)
+	if err != nil {
+		return err
+	}
+	if hCloudServer == nil {
+		return fmt.Errorf("server not found: %s", serverName)
+	}
+	_, _, err = p.Client.Volume.Attach(context.Background(), volume, hCloudServer)
+	return err
 }
 
 func (p *HetznerProvider) GetVolume(volumeName string) (*types.Volume, error) {
@@ -124,18 +171,27 @@ func mapVolume(v *hcloud.Volume, client *hcloud.Client) *types.Volume {
 	}
 
 	return &types.Volume{
-		ID:          strconv.FormatInt(v.ID, 10),
-		Name:        v.Name,
-		Status:      string(v.Status),
-		Owner:       v.Labels["owner"],
-		ServerID:    strconv.FormatInt(serverID, 10),
-		ServerName:  serverName,
-		Location:    location,
-		Size:        v.Size,
-		Format:      format,
-		Labels:      v.Labels,
-		Created:     v.Created,
-		DeleteAfter: timeutil.ParseDeleteAfter(v.Labels["delete_after"]),
+		TypeMeta: types.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Volume",
+		},
+		ObjectMeta: types.ObjectMeta{
+			Name: v.Name,
+		},
+		Spec: types.VolumeSpec{
+			Location:   location,
+			Size:       v.Size,
+			Format:     format,
+			Labels:     v.Labels,
+			ServerID:   strconv.FormatInt(serverID, 10),
+			ServerName: serverName,
+		},
+		Status: types.VolumeStatus{
+			Status:      string(v.Status),
+			Owner:       v.Labels["owner"],
+			Created:     v.Created,
+			DeleteAfter: timeutil.ParseDeleteAfter(v.Labels["delete_after"]),
+		},
 	}
 }
 

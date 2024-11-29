@@ -36,8 +36,8 @@ func listKeys() error {
 	fmt.Fprintln(w, "NAME\tLAB\tAGE\tDELETE AFTER")
 	for _, key := range keys {
 		deleteAfter := "-"
-		if !key.DeleteAfter.IsZero() {
-			deleteAfter = key.DeleteAfter.Format(time.RFC3339)
+		if !key.Status.DeleteAfter.IsZero() {
+			deleteAfter = key.Status.DeleteAfter.Format(time.RFC3339)
 		}
 
 		labName := key.Labels["lab_name"]
@@ -48,7 +48,7 @@ func listKeys() error {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
 			key.Name,
 			labName,
-			timeutil.FormatAge(key.Created),
+			timeutil.FormatAge(key.Status.Created),
 			deleteAfter)
 	}
 	return w.Flush()
@@ -64,8 +64,8 @@ func getKey(name string) error {
 	fmt.Fprintln(w, "NAME\tLAB\tAGE\tDELETE AFTER")
 
 	deleteAfter := "-"
-	if !key.DeleteAfter.IsZero() {
-		deleteAfter = key.DeleteAfter.Format(time.RFC3339)
+	if !key.Status.DeleteAfter.IsZero() {
+		deleteAfter = key.Status.DeleteAfter.Format(time.RFC3339)
 	}
 
 	labName := key.Labels["lab_name"]
@@ -76,7 +76,7 @@ func getKey(name string) error {
 	fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
 		key.Name,
 		labName,
-		timeutil.FormatAge(key.Created),
+		timeutil.FormatAge(key.Status.Created),
 		deleteAfter)
 
 	return w.Flush()

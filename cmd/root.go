@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/pavelanni/labshop/internal/config"
+	"github.com/pavelanni/labshop/internal/dns"
 	"github.com/pavelanni/labshop/internal/provider"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -15,28 +16,48 @@ var (
 	cfgFile     string
 	cfg         *config.Config
 	providerSvc provider.CloudProvider
+	dnsSvc      *dns.CloudflareDNSProvider
 )
 
 func NewRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "labshop",
 		Short: "Labshop - Lab Environment Manager",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			// Skip initialization for the init command
+			if cmd.Name() == "init" {
+				return nil
+			}
+
+			// Initialize everything before command execution
+			initConfig()
+			initProvider()
+			initDNS()
+			return nil
+		},
 	}
 
 	// Global flags
-	cmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.labshop/config.yaml)")
+	defaultConfigFile := filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, "config.yaml")
+	cmd.PersistentFlags().StringVar(&cfgFile, "config", defaultConfigFile, "config file")
 	cmd.PersistentFlags().Bool("debug", false, "enable debug output")
 
 	// Add commands
-	cmd.AddCommand(
-		NewGetCmd(),
-		NewDeleteCmd(),
-		NewConfigCmd(),
-		NewCreateCmd(),
-	)
+	cmd.AddCommand(NewInitCmd())
+
+	// Only add other commands if not running 'init'
+	if len(os.Args) > 1 && os.Args[1] != "init" {
+		cmd.AddCommand(
+			NewGetCmd(),
+			NewDeleteCmd(),
+			NewConfigCmd(),
+			NewCreateCmd(),
+		)
+	}
 
 	return cmd
 }
+
 func initConfig() {
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
@@ -85,10 +106,21 @@ func initProvider() {
 	}
 }
 
-func Execute() error {
-	return NewRootCmd().Execute()
+func initDNS() {
+	var err error
+
+	if cfg.DNS.Provider == "cloudflare" {
+		dnsSvc, err = dns.NewCloudflareDNS(cfg.DNS.Token)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error initializing DNS provider: %v\n", err)
+			os.Exit(1)
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "Unsupported DNS provider: %s\n", cfg.DNS.Provider)
+		os.Exit(1)
+	}
 }
 
-func init() {
-	cobra.OnInitialize(initConfig, initProvider)
+func Execute() error {
+	return NewRootCmd().Execute()
 }

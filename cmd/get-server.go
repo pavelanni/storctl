@@ -37,14 +37,14 @@ func listServers() error {
 	fmt.Fprintln(w, "NAME\tTYPE\tOWNER\tAGE\tDELETE AFTER")
 	for _, server := range servers {
 		deleteAfter := "-"
-		if !server.DeleteAfter.IsZero() {
-			deleteAfter = server.DeleteAfter.Format(time.RFC3339)
+		if !server.Status.DeleteAfter.IsZero() {
+			deleteAfter = server.Status.DeleteAfter.Format(time.RFC3339)
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
 			server.Name,
-			server.Type,
-			server.Owner,
-			timeutil.FormatAge(server.Created),
+			server.Spec.Type,
+			server.Status.Owner,
+			timeutil.FormatAge(server.Status.Created),
 			deleteAfter)
 	}
 	return w.Flush()
@@ -59,14 +59,14 @@ func getServer(serverID string) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "NAME\tTYPE\tOWNER\tAGE\tDELETE AFTER")
 	deleteAfter := "-"
-	if !server.DeleteAfter.IsZero() {
-		deleteAfter = server.DeleteAfter.Format(time.RFC3339)
+	if !server.Status.DeleteAfter.IsZero() {
+		deleteAfter = server.Status.DeleteAfter.Format(time.RFC3339)
 	}
 	fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
 		server.Name,
-		server.Type,
-		server.Owner,
-		timeutil.FormatAge(server.Created),
+		server.Spec.Type,
+		server.Status.Owner,
+		timeutil.FormatAge(server.Status.Created),
 		deleteAfter)
 	return w.Flush()
 }

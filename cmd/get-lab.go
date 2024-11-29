@@ -44,9 +44,17 @@ func listLabs() error {
 			continue
 		}
 		if labs[labName] == nil {
-			labs[labName] = &types.Lab{Name: labName}
+			labs[labName] = &types.Lab{
+				TypeMeta: types.TypeMeta{
+					APIVersion: "v1",
+					Kind:       "Lab",
+				},
+				ObjectMeta: types.ObjectMeta{
+					Name: labName,
+				},
+			}
 		}
-		labs[labName].Servers = append(labs[labName].Servers, server)
+		labs[labName].Status.Servers = append(labs[labName].Status.Servers, server)
 	}
 	for _, volume := range volumes {
 		labName := volume.Labels["lab_name"]
@@ -54,9 +62,17 @@ func listLabs() error {
 			continue
 		}
 		if labs[labName] == nil {
-			labs[labName] = &types.Lab{Name: labName}
+			labs[labName] = &types.Lab{
+				TypeMeta: types.TypeMeta{
+					APIVersion: "v1",
+					Kind:       "Lab",
+				},
+				ObjectMeta: types.ObjectMeta{
+					Name: labName,
+				},
+			}
 		}
-		labs[labName].Volumes = append(labs[labName].Volumes, volume)
+		labs[labName].Status.Volumes = append(labs[labName].Status.Volumes, volume)
 	}
 
 	// Create a new tabwriter
@@ -72,16 +88,16 @@ func listLabs() error {
 		owner := "N/A"
 		labAge := "N/A"
 		deleteAfter := time.Time{}
-		if len(lab.Servers) > 0 {
-			serverType = lab.Servers[0].Type
-			deleteAfter = lab.Servers[0].DeleteAfter
-			if lab.Servers[0].Labels["owner"] != "" {
-				owner = lab.Servers[0].Labels["owner"]
+		if len(lab.Status.Servers) > 0 {
+			serverType = lab.Status.Servers[0].Spec.Type
+			deleteAfter = lab.Status.Servers[0].Status.DeleteAfter
+			if lab.Status.Servers[0].Status.Owner != "" {
+				owner = lab.Status.Servers[0].Status.Owner
 			}
-			labAge = timeutil.FormatAge(lab.Servers[0].Created)
+			labAge = timeutil.FormatAge(lab.Status.Servers[0].Status.Created)
 		}
-		if len(lab.Volumes) > 0 {
-			volSize = lab.Volumes[0].Size
+		if len(lab.Status.Volumes) > 0 {
+			volSize = lab.Status.Volumes[0].Spec.Size
 		}
 		deleteAfterStr := "N/A"
 		if !deleteAfter.IsZero() {
@@ -89,7 +105,7 @@ func listLabs() error {
 		}
 
 		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%d\t%.2f\t%s\t%s\n",
-			lab.Name, owner, len(lab.Servers), serverType, len(lab.Volumes), float32(volSize), labAge, deleteAfterStr)
+			lab.Name, owner, len(lab.Status.Servers), serverType, len(lab.Status.Volumes), float32(volSize), labAge, deleteAfterStr)
 	}
 
 	// Flush the tabwriter to output
@@ -104,11 +120,17 @@ func getLab(labName string) error {
 		return err
 	}
 	fmt.Printf("Lab: %s\n", lab.Name)
-	for _, server := range lab.Servers {
-		fmt.Printf("  Server: %s, Type: %s, Cores: %d, Memory: %.2fGB, Disk: %dGB, DeleteAfter: %s\n", server.Name, server.Type, server.Cores, server.Memory, server.Disk, server.DeleteAfter)
+	for _, server := range lab.Status.Servers {
+		fmt.Printf("  Server: %s, Type: %s, Cores: %d, Memory: %.2fGB, Disk: %dGB, DeleteAfter: %s\n",
+			server.ObjectMeta.Name,
+			server.Spec.Type,
+			server.Status.Cores,
+			server.Status.Memory,
+			server.Status.Disk,
+			server.Status.DeleteAfter)
 	}
-	for _, volume := range lab.Volumes {
-		fmt.Printf("  Volume: %s, Size: %dGB, DeleteAfter: %s\n", volume.Name, volume.Size, volume.DeleteAfter)
+	for _, volume := range lab.Status.Volumes {
+		fmt.Printf("  Volume: %s, Size: %dGB, DeleteAfter: %s\n", volume.ObjectMeta.Name, volume.Spec.Size, volume.Status.DeleteAfter)
 	}
 
 	return nil

@@ -79,28 +79,28 @@ func processDeleteResource(resource *types.Resource, assumeYes, skipTimeCheck bo
 	if !askForConfirmation(resource) {
 		return nil
 	}
-	resourceName, ok := resource.Metadata["name"]
-	if !ok {
+	resourceName := resource.ObjectMeta.Name
+	if resourceName == "" {
 		return fmt.Errorf("resource name is required")
 	}
 	switch resource.Kind {
 	case "Server":
-		if err := providerSvc.DeleteServer(resourceName.(string), skipTimeCheck); err != nil {
+		if err := providerSvc.DeleteServer(resourceName, skipTimeCheck); err != nil {
 			return fmt.Errorf("failed to delete server: %w", err)
 		}
 		return nil
 	case "Volume":
-		if err := providerSvc.DeleteVolume(resourceName.(string), skipTimeCheck); err != nil {
+		if err := providerSvc.DeleteVolume(resourceName, skipTimeCheck); err != nil {
 			return fmt.Errorf("failed to delete volume: %w", err)
 		}
 		return nil
 	case "Key":
-		if err := providerSvc.DeleteSSHKey(resourceName.(string), skipTimeCheck); err != nil {
+		if err := providerSvc.DeleteSSHKey(resourceName, skipTimeCheck); err != nil {
 			return fmt.Errorf("failed to delete key: %w", err)
 		}
 		return nil
 	case "Lab":
-		if err := providerSvc.DeleteLab(resourceName.(string), skipTimeCheck); err != nil {
+		if err := providerSvc.DeleteLab(resourceName, skipTimeCheck); err != nil {
 			return fmt.Errorf("failed to delete lab: %w", err)
 		}
 		return nil
@@ -110,8 +110,8 @@ func processDeleteResource(resource *types.Resource, assumeYes, skipTimeCheck bo
 }
 
 func askForConfirmation(resource *types.Resource) bool {
-	resourceName, ok := resource.Metadata["name"]
-	if !ok {
+	resourceName := resource.ObjectMeta.Name
+	if resourceName == "" {
 		return false
 	}
 	resourceKind := resource.Kind

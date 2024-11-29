@@ -3,22 +3,22 @@ package hetzner
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
+	"github.com/pavelanni/labshop/internal/provider/options"
 	"github.com/pavelanni/labshop/internal/types"
 	"github.com/pavelanni/labshop/internal/util/timeutil"
 )
 
-func (p *HetznerProvider) CreateSSHKey(name string, publicKey string, labels map[string]string) (*types.SSHKey, error) {
+func (p *HetznerProvider) CreateSSHKey(opts options.SSHKeyCreateOpts) (*types.SSHKey, error) {
 	p.logger.Info("creating SSH key",
-		"name", name,
-		"public_key", publicKey)
+		"name", opts.Name,
+		"public_key", opts.PublicKey)
 	sshKey, _, err := p.Client.SSHKey.Create(context.Background(), hcloud.SSHKeyCreateOpts{
-		Name:      name,
-		PublicKey: publicKey,
-		Labels:    labels,
+		Name:      opts.Name,
+		PublicKey: opts.PublicKey,
+		Labels:    opts.Labels,
 	})
 	if err != nil {
 		return nil, err
@@ -54,17 +54,21 @@ func (p *HetznerProvider) DeleteSSHKey(name string, force bool) error {
 		return fmt.Errorf("empty SSH key name provided")
 	}
 
+	keyExists, err := p.KeyExists(name)
+	if err != nil {
+		return err
+	}
+	if !keyExists {
+		p.logger.Info("SSH key not found, skipping",
+			"key", name)
+		return nil
+	}
+
 	sshKey, _, err := p.Client.SSHKey.GetByName(context.Background(), name)
 	if err != nil {
 		p.logger.Error("failed to get SSH key",
 			"key", name)
 		return err
-	}
-
-	if sshKey == nil {
-		p.logger.Info("SSH key not found, skipping",
-			"key", name)
-		return nil
 	}
 
 	if !force {
@@ -93,7 +97,10 @@ func (p *HetznerProvider) DeleteSSHKey(name string, force bool) error {
 
 func (p *HetznerProvider) KeyExists(name string) (bool, error) {
 	sshKey, _, err := p.Client.SSHKey.GetByName(context.Background(), name)
-	return sshKey != nil, err
+	if err != nil {
+		return false, fmt.Errorf("failed to check SSH key existence: %w", err)
+	}
+	return sshKey != nil, nil
 }
 
 func mapSSHKey(sk *hcloud.SSHKey) *types.SSHKey {
@@ -102,13 +109,21 @@ func mapSSHKey(sk *hcloud.SSHKey) *types.SSHKey {
 	}
 
 	return &types.SSHKey{
-		ID:          strconv.FormatInt(sk.ID, 10),
-		Name:        sk.Name,
-		Fingerprint: sk.Fingerprint,
-		PublicKey:   sk.PublicKey,
-		Labels:      sk.Labels,
-		Created:     sk.Created,
-		DeleteAfter: timeutil.ParseDeleteAfter(sk.Labels["delete_after"]),
+		TypeMeta: types.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "SSHKey",
+		},
+		ObjectMeta: types.ObjectMeta{
+			Name: sk.Name,
+		},
+		Spec: types.SSHKeySpec{
+			PublicKey: sk.PublicKey,
+			Labels:    sk.Labels,
+		},
+		Status: types.SSHKeyStatus{
+			Created:     sk.Created,
+			DeleteAfter: timeutil.ParseDeleteAfter(sk.Labels["delete_after"]),
+		},
 	}
 }
 
