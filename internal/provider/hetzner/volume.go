@@ -63,7 +63,7 @@ func (p *HetznerProvider) CreateVolume(opts options.VolumeCreateOpts) (*types.Vo
 	}
 	p.logger.Info("successfully created volume",
 		"name", volumeOpts.Name)
-	return mapVolume(volume.Volume, p.Client), nil
+	return p.mapVolume(volume.Volume), nil
 }
 
 func (p *HetznerProvider) AttachVolume(volumeName, serverName string) error {
@@ -93,7 +93,19 @@ func (p *HetznerProvider) GetVolume(volumeName string) (*types.Volume, error) {
 	if err != nil {
 		return nil, err
 	}
-	return mapVolume(volume, p.Client), nil
+	return p.mapVolume(volume), nil
+}
+
+func (p *HetznerProvider) ListVolumes(opts options.VolumeListOpts) ([]*types.Volume, error) {
+	volumes, _, err := p.Client.Volume.List(context.Background(), hcloud.VolumeListOpts{
+		ListOpts: hcloud.ListOpts{
+			LabelSelector: opts.LabelSelector,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return p.mapVolumes(volumes), nil
 }
 
 func (p *HetznerProvider) AllVolumes() ([]*types.Volume, error) {
@@ -102,7 +114,7 @@ func (p *HetznerProvider) AllVolumes() ([]*types.Volume, error) {
 		return nil, err
 	}
 
-	return mapVolumes(volumes, p.Client), nil
+	return p.mapVolumes(volumes), nil
 }
 
 func (p *HetznerProvider) DeleteVolume(volumeName string, force bool) error {
@@ -144,7 +156,7 @@ func (p *HetznerProvider) DeleteVolume(volumeName string, force bool) error {
 }
 
 // mapVolume converts a Hetzner-specific volume to our generic Volume type
-func mapVolume(v *hcloud.Volume, client *hcloud.Client) *types.Volume {
+func (p *HetznerProvider) mapVolume(v *hcloud.Volume) *types.Volume {
 	if v == nil {
 		return nil
 	}
@@ -165,7 +177,7 @@ func mapVolume(v *hcloud.Volume, client *hcloud.Client) *types.Volume {
 	if v.Server != nil {
 		serverID = int64(v.Server.ID)
 		// Fetch server details from Hetzner
-		if server, _, err := client.Server.GetByID(context.Background(), v.Server.ID); err == nil && server != nil {
+		if server, _, err := p.Client.Server.GetByID(context.Background(), v.Server.ID); err == nil && server != nil {
 			serverName = server.Name
 		}
 	}
@@ -196,14 +208,14 @@ func mapVolume(v *hcloud.Volume, client *hcloud.Client) *types.Volume {
 }
 
 // mapVolumes converts a slice of Hetzner volumes
-func mapVolumes(volumes []*hcloud.Volume, client *hcloud.Client) []*types.Volume {
+func (p *HetznerProvider) mapVolumes(volumes []*hcloud.Volume) []*types.Volume {
 	if volumes == nil {
 		return nil
 	}
 
 	result := make([]*types.Volume, len(volumes))
 	for i, v := range volumes {
-		result[i] = mapVolume(v, client)
+		result[i] = p.mapVolume(v)
 	}
 	return result
 }

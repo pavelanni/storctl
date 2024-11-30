@@ -6,6 +6,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/pavelanni/labshop/internal/util/output"
 	"github.com/pavelanni/labshop/internal/util/timeutil"
 	"github.com/spf13/cobra"
 )
@@ -56,17 +57,24 @@ func getServer(serverID string) error {
 		return err
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tTYPE\tOWNER\tAGE\tDELETE AFTER")
-	deleteAfter := "-"
-	if !server.Status.DeleteAfter.IsZero() {
-		deleteAfter = server.Status.DeleteAfter.Format(time.RFC3339)
+	switch cfg.OutputFormat {
+	case "json":
+		return output.JSON(server)
+	case "yaml":
+		return output.YAML(server)
+	default:
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "NAME\tTYPE\tOWNER\tAGE\tDELETE AFTER")
+		deleteAfter := "-"
+		if !server.Status.DeleteAfter.IsZero() {
+			deleteAfter = server.Status.DeleteAfter.Format(time.RFC3339)
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+			server.Name,
+			server.Spec.Type,
+			server.Status.Owner,
+			timeutil.FormatAge(server.Status.Created),
+			deleteAfter)
+		return w.Flush()
 	}
-	fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
-		server.Name,
-		server.Spec.Type,
-		server.Status.Owner,
-		timeutil.FormatAge(server.Status.Created),
-		deleteAfter)
-	return w.Flush()
 }

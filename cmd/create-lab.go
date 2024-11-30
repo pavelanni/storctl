@@ -80,6 +80,7 @@ func createLab(lab *types.Lab) (*types.Lab, error) {
 			},
 			Spec: types.ServerSpec{
 				Location:    lab.Spec.Location,
+				Provider:    lab.Spec.Provider,
 				Type:        serverSpec.Type,
 				TTL:         ttl,
 				Image:       serverSpec.Image,

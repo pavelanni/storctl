@@ -24,15 +24,6 @@ func NewRootCmd() *cobra.Command {
 		Use:   "labshop",
 		Short: "Labshop - Lab Environment Manager",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			// Skip initialization for the init command
-			if cmd.Name() == "init" {
-				return nil
-			}
-
-			// Initialize everything before command execution
-			initConfig()
-			initProvider()
-			initDNS()
 			return nil
 		},
 	}
@@ -47,6 +38,10 @@ func NewRootCmd() *cobra.Command {
 
 	// Only add other commands if not running 'init'
 	if len(os.Args) > 1 && os.Args[1] != "init" {
+		// Initialize everything before adding other commands
+		initConfig()
+		initProvider()
+		initDNS()
 		cmd.AddCommand(
 			NewGetCmd(),
 			NewDeleteCmd(),

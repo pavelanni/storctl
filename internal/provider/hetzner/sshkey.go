@@ -41,6 +41,18 @@ func (p *HetznerProvider) GetSSHKey(name string) (*types.SSHKey, error) {
 	return mapSSHKey(sshKey), nil
 }
 
+func (p *HetznerProvider) ListSSHKeys(opts options.SSHKeyListOpts) ([]*types.SSHKey, error) {
+	sshKeys, _, err := p.Client.SSHKey.List(context.Background(), hcloud.SSHKeyListOpts{
+		ListOpts: hcloud.ListOpts{
+			LabelSelector: opts.LabelSelector,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return mapSSHKeys(sshKeys), nil
+}
+
 func (p *HetznerProvider) AllSSHKeys() ([]*types.SSHKey, error) {
 	sshKeys, err := p.Client.SSHKey.All(context.Background())
 	if err != nil {

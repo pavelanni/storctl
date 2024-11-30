@@ -12,6 +12,8 @@ type Config struct {
 	Email        string         `mapstructure:"email" yaml:"email"`
 	Organization string         `mapstructure:"organization" yaml:"organization"`
 	Owner        string         `mapstructure:"owner" yaml:"owner"`
+	Debug        bool
+	OutputFormat string
 }
 
 type ProviderConfig struct {

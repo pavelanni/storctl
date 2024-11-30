@@ -15,5 +15,7 @@ func NewGetCmd() *cobra.Command {
 	cmd.AddCommand(NewGetVolumeCmd())
 	cmd.AddCommand(NewGetKeyCmd())
 
+	cmd.PersistentFlags().StringVarP(&cfg.OutputFormat, "output", "o", "text", "Output format (text|json|yaml)")
+
 	return cmd
 }

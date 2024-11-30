@@ -26,6 +26,7 @@ type ServerSpec struct {
 	Type        string            `json:"type"`
 	Image       string            `json:"image"`
 	Location    string            `json:"location"`
+	Provider    string            `json:"provider"`
 	Labels      map[string]string `json:"labels"`
 	Volumes     []*Volume         `json:"volumes"`
 	SSHKeyNames []string          `json:"sshKeyNames"`
@@ -54,6 +55,7 @@ type VolumeSpec struct {
 	ServerID   string            `json:"serverID"`
 	ServerName string            `json:"serverName"`
 	Location   string            `json:"location"`
+	Provider   string            `json:"provider"`
 	Size       int               `json:"size"`
 	Automount  bool              `json:"automount"`
 	Format     string            `json:"format"`

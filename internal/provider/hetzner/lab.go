@@ -1,6 +1,7 @@
 package hetzner
 
 import (
+	"github.com/pavelanni/labshop/internal/provider/options"
 	"github.com/pavelanni/labshop/internal/types"
 )
 
@@ -19,32 +20,58 @@ func (p *HetznerProvider) GetLab(labName string) (*types.Lab, error) {
 		},
 	}
 
-	servers, err := p.AllServers()
+	servers, err := p.ListServers(options.ServerListOpts{
+		ListOpts: options.ListOpts{
+			LabelSelector: "lab_name=" + labName,
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
-	volumes, err := p.AllVolumes()
+	volumes, err := p.ListVolumes(options.VolumeListOpts{
+		ListOpts: options.ListOpts{
+			LabelSelector: "lab_name=" + labName,
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
-	for _, server := range servers {
-		labName := server.Labels["lab_name"]
-		if labName == "" {
-			continue
-		}
-		if labName != lab.Name {
-			continue
-		}
-		lab.Status.Servers = append(lab.Status.Servers, server)
+	lab.Status.Servers = append(lab.Status.Servers, servers...)
+	lab.Status.Volumes = append(lab.Status.Volumes, volumes...)
+	// Add labels from the first server
+	if len(servers) > 0 {
+		lab.ObjectMeta.Labels = servers[0].ObjectMeta.Labels
 	}
-	for _, volume := range volumes {
-		labName := volume.Labels["lab_name"]
-		if labName != lab.Name {
-			continue
-		}
-		lab.Status.Volumes = append(lab.Status.Volumes, volume)
-	}
+	lab.Status.Status = servers[0].Status.Status
+	lab.Status.Owner = servers[0].Status.Owner
+	lab.Status.Created = servers[0].Status.Created
+	lab.Status.DeleteAfter = servers[0].Status.DeleteAfter
+	lab.Spec.Location = servers[0].Spec.Location
+	lab.Spec.Provider = servers[0].Spec.Provider
 	return lab, nil
+}
+
+func (p *HetznerProvider) ListLabs(opts options.LabListOpts) ([]*types.Lab, error) {
+	labsMap := make(map[string]*types.Lab)
+	allServers, err := p.AllServers()
+	if err != nil {
+		return nil, err
+	}
+	// collect unique lab names
+	for _, server := range allServers {
+		if server.Labels["lab_name"] != "" {
+			labsMap[server.Labels["lab_name"]] = &types.Lab{}
+		}
+	}
+	labs := make([]*types.Lab, 0)
+	for labName := range labsMap {
+		lab, err := p.GetLab(labName)
+		if err != nil {
+			return nil, err
+		}
+		labs = append(labs, lab)
+	}
+	return labs, nil
 }
 
 func (p *HetznerProvider) DeleteLab(labName string, force bool) error {

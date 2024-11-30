@@ -56,7 +56,7 @@ func (p *HetznerProvider) CreateServer(opts options.ServerCreateOpts) (*types.Se
 		"name", opts.Name,
 		"ip", server.Server.PublicNet.IPv4.IP)
 
-	return mapServer(server.Server, p.Client), nil
+	return p.mapServer(server.Server), nil
 }
 
 func (p *HetznerProvider) GetServer(serverName string) (*types.Server, error) {
@@ -64,7 +64,19 @@ func (p *HetznerProvider) GetServer(serverName string) (*types.Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return mapServer(server, p.Client), nil
+	return p.mapServer(server), nil
+}
+
+func (p *HetznerProvider) ListServers(opts options.ServerListOpts) ([]*types.Server, error) {
+	servers, _, err := p.Client.Server.List(context.Background(), hcloud.ServerListOpts{
+		ListOpts: hcloud.ListOpts{
+			LabelSelector: opts.LabelSelector,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return p.mapServers(servers), nil
 }
 
 func (p *HetznerProvider) AllServers() ([]*types.Server, error) {
@@ -73,7 +85,7 @@ func (p *HetznerProvider) AllServers() ([]*types.Server, error) {
 		return nil, err
 	}
 
-	return mapServers(servers, p.Client), nil
+	return p.mapServers(servers), nil
 }
 
 func (p *HetznerProvider) DeleteServer(serverName string, force bool) error {
@@ -111,11 +123,22 @@ func (p *HetznerProvider) DeleteServer(serverName string, force bool) error {
 }
 
 // mapServer converts a Hetzner-specific server to our generic Server type
-func mapServer(s *hcloud.Server, client *hcloud.Client) *types.Server {
+func (p *HetznerProvider) mapServer(s *hcloud.Server) *types.Server {
 	if s == nil {
 		return nil
 	}
 
+	volumes := make([]*hcloud.Volume, 0)
+	for _, volume := range s.Volumes {
+		v, _, err := p.Client.Volume.Get(context.Background(), fmt.Sprintf("%d", volume.ID))
+		if err != nil {
+			p.logger.Error("error getting volume",
+				"volume", volume.ID,
+				"error", err)
+			continue
+		}
+		volumes = append(volumes, v)
+	}
 	return &types.Server{
 		TypeMeta: types.TypeMeta{
 			APIVersion: "v1",
@@ -128,8 +151,10 @@ func mapServer(s *hcloud.Server, client *hcloud.Client) *types.Server {
 		Spec: types.ServerSpec{
 			Type:     s.ServerType.Name,
 			Location: s.Datacenter.Location.Name,
+			Provider: "hetzner",
+			Image:    s.Image.Name,
 			Labels:   s.Labels,
-			Volumes:  mapVolumes(s.Volumes, client),
+			Volumes:  p.mapVolumes(volumes),
 			TTL:      s.Labels["ttl"],
 		},
 		Status: types.ServerStatus{
@@ -146,14 +171,14 @@ func mapServer(s *hcloud.Server, client *hcloud.Client) *types.Server {
 }
 
 // mapServers converts a slice of Hetzner servers
-func mapServers(servers []*hcloud.Server, client *hcloud.Client) []*types.Server {
+func (p *HetznerProvider) mapServers(servers []*hcloud.Server) []*types.Server {
 	if servers == nil {
 		return nil
 	}
 
 	result := make([]*types.Server, len(servers))
 	for i, s := range servers {
-		result[i] = mapServer(s, client)
+		result[i] = p.mapServer(s)
 	}
 	return result
 }

@@ -6,7 +6,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/pavelanni/labshop/internal/types"
+	"github.com/pavelanni/labshop/internal/provider/options"
+	"github.com/pavelanni/labshop/internal/util/output"
 	"github.com/pavelanni/labshop/internal/util/timeutil"
 	"github.com/spf13/cobra"
 )
@@ -29,52 +30,10 @@ func NewGetLabCmd() *cobra.Command {
 }
 
 func listLabs() error {
-	labs := make(map[string]*types.Lab)
-	servers, err := providerSvc.AllServers()
+	labs, err := providerSvc.ListLabs(options.LabListOpts{})
 	if err != nil {
 		return err
 	}
-	volumes, err := providerSvc.AllVolumes()
-	if err != nil {
-		return err
-	}
-	for _, server := range servers {
-		labName := server.Labels["lab_name"]
-		if labName == "" {
-			continue
-		}
-		if labs[labName] == nil {
-			labs[labName] = &types.Lab{
-				TypeMeta: types.TypeMeta{
-					APIVersion: "v1",
-					Kind:       "Lab",
-				},
-				ObjectMeta: types.ObjectMeta{
-					Name: labName,
-				},
-			}
-		}
-		labs[labName].Status.Servers = append(labs[labName].Status.Servers, server)
-	}
-	for _, volume := range volumes {
-		labName := volume.Labels["lab_name"]
-		if labName == "" {
-			continue
-		}
-		if labs[labName] == nil {
-			labs[labName] = &types.Lab{
-				TypeMeta: types.TypeMeta{
-					APIVersion: "v1",
-					Kind:       "Lab",
-				},
-				ObjectMeta: types.ObjectMeta{
-					Name: labName,
-				},
-			}
-		}
-		labs[labName].Status.Volumes = append(labs[labName].Status.Volumes, volume)
-	}
-
 	// Create a new tabwriter
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 
@@ -119,18 +78,28 @@ func getLab(labName string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Lab: %s\n", lab.Name)
-	for _, server := range lab.Status.Servers {
-		fmt.Printf("  Server: %s, Type: %s, Cores: %d, Memory: %.2fGB, Disk: %dGB, DeleteAfter: %s\n",
-			server.ObjectMeta.Name,
-			server.Spec.Type,
-			server.Status.Cores,
-			server.Status.Memory,
-			server.Status.Disk,
-			server.Status.DeleteAfter)
-	}
-	for _, volume := range lab.Status.Volumes {
-		fmt.Printf("  Volume: %s, Size: %dGB, DeleteAfter: %s\n", volume.ObjectMeta.Name, volume.Spec.Size, volume.Status.DeleteAfter)
+	switch cfg.OutputFormat {
+	case "json":
+		return output.JSON(lab)
+	case "yaml":
+		return output.YAML(lab)
+	default:
+		fmt.Printf("Lab: %s\n", lab.Name)
+		for _, server := range lab.Status.Servers {
+			fmt.Printf("  Server: %s, Type: %s, Cores: %d, Memory: %.2fGB, Disk: %dGB, DeleteAfter: %s\n",
+				server.ObjectMeta.Name,
+				server.Spec.Type,
+				server.Status.Cores,
+				server.Status.Memory,
+				server.Status.Disk,
+				server.Status.DeleteAfter)
+		}
+		for _, volume := range lab.Status.Volumes {
+			fmt.Printf("  Volume: %s, Size: %dGB, DeleteAfter: %s\n",
+				volume.ObjectMeta.Name,
+				volume.Spec.Size,
+				volume.Status.DeleteAfter)
+		}
 	}
 
 	return nil

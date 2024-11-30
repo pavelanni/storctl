@@ -41,6 +41,7 @@ func NewCreateServerCmd() *cobra.Command {
 					Type:        serverType,
 					Image:       image,
 					Location:    location,
+					Provider:    cfg.Provider.Name,
 					SSHKeyNames: sshKeyNames,
 				},
 			}
@@ -122,6 +123,7 @@ func createServer(server *types.Server) (*types.Server, error) {
 		Type:     server.Spec.Type,
 		Image:    server.Spec.Image,
 		Location: server.Spec.Location,
+		Provider: server.Spec.Provider,
 		SSHKeys:  sshKeys,
 		Labels:   labels,
 		UserData: cloudInitUserData,
