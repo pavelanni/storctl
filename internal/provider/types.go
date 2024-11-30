@@ -23,8 +23,10 @@ type CloudProvider interface {
 	// Lab operations
 	CreateLab(name string, template string) error
 	GetLab(name string) (*types.Lab, error)
+	GetLabFromDB(name string) (*types.Lab, error)
 	ListLabs(opts options.LabListOpts) ([]*types.Lab, error)
 	DeleteLab(name string, force bool) error
+	SyncLabs() error
 
 	// SSH Key operations
 	CreateSSHKey(opts options.SSHKeyCreateOpts) (*types.SSHKey, error)

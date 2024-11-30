@@ -117,7 +117,7 @@ func createServer(server *types.Server) (*types.Server, error) {
 	}
 
 	cloudInitUserData := fmt.Sprintf(config.DefaultCloudInitUserData, sshKeys[0].Spec.PublicKey)
-	logger.Info("cloud-init user data", "data", cloudInitUserData)
+	logger.Debug("cloud-init user data", "data", cloudInitUserData)
 	result, err := providerSvc.CreateServer(options.ServerCreateOpts{
 		Name:     server.ObjectMeta.Name,
 		Type:     server.Spec.Type,

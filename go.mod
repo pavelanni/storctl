@@ -7,7 +7,9 @@ require (
 	github.com/hetznercloud/hcloud-go/v2 v2.17.0
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
+	go.etcd.io/bbolt v1.3.11
 	golang.org/x/crypto v0.29.0
+	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/apimachinery v0.31.3
 )
 
@@ -44,7 +46,6 @@ require (
 	golang.org/x/time v0.8.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )

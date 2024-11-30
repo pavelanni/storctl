@@ -47,6 +47,7 @@ func NewRootCmd() *cobra.Command {
 			NewDeleteCmd(),
 			NewConfigCmd(),
 			NewCreateCmd(),
+			NewSyncCmd(),
 		)
 	}
 

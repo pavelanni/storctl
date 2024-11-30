@@ -7,12 +7,15 @@ import (
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/pavelanni/labshop/internal/config"
 	"github.com/pavelanni/labshop/internal/logger"
+	"go.etcd.io/bbolt"
 )
 
 type HetznerProvider struct {
-	Client *hcloud.Client
-	config *config.Config
-	logger *slog.Logger
+	Client    *hcloud.Client
+	config    *config.Config
+	logger    *slog.Logger
+	db        *bbolt.DB
+	labBucket []byte
 }
 
 func New(cfg *config.Config) (*HetznerProvider, error) {
@@ -22,9 +25,27 @@ func New(cfg *config.Config) (*HetznerProvider, error) {
 	}
 
 	client := hcloud.NewClient(hcloud.WithToken(token))
-	return &HetznerProvider{
-		Client: client,
-		config: cfg,
-		logger: logger.GetLogger(),
-	}, nil
+	p := &HetznerProvider{
+		Client:    client,
+		config:    cfg,
+		logger:    logger.GetLogger(),
+		labBucket: []byte("labs"),
+	}
+	// Open the database
+	db, err := bbolt.Open("labs.db", 0600, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open db: %w", err)
+	}
+	p.db = db
+
+	// Create the bucket
+	err = db.Update(func(tx *bbolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists(p.labBucket)
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create bucket: %w", err)
+	}
+
+	return p, nil
 }

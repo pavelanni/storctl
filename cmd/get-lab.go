@@ -74,7 +74,7 @@ func listLabs() error {
 
 func getLab(labName string) error {
 	fmt.Printf("Getting details for lab: %s\n", labName)
-	lab, err := providerSvc.GetLab(labName)
+	lab, err := providerSvc.GetLabFromDB(labName)
 	if err != nil {
 		return err
 	}

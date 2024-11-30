@@ -1,8 +1,11 @@
 package hetzner
 
 import (
+	"encoding/json"
+
 	"github.com/pavelanni/labshop/internal/provider/options"
 	"github.com/pavelanni/labshop/internal/types"
+	"go.etcd.io/bbolt"
 )
 
 func (p *HetznerProvider) CreateLab(name string, template string) error {
@@ -51,11 +54,32 @@ func (p *HetznerProvider) GetLab(labName string) (*types.Lab, error) {
 	return lab, nil
 }
 
-func (p *HetznerProvider) ListLabs(opts options.LabListOpts) ([]*types.Lab, error) {
+func (p *HetznerProvider) GetLabFromDB(labName string) (*types.Lab, error) {
+	var lab *types.Lab
+
+	err := p.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(p.labBucket)
+		data := b.Get([]byte(labName))
+		if data == nil {
+			// If not in cache, fetch from cloud
+			var err error
+			lab, err = p.GetLab(labName)
+			return err
+		}
+
+		lab = &types.Lab{}
+		return json.Unmarshal(data, lab)
+	})
+
+	return lab, err
+}
+
+func (p *HetznerProvider) SyncLabs() error {
+	p.logger.Info("syncing labs")
 	labsMap := make(map[string]*types.Lab)
 	allServers, err := p.AllServers()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	// collect unique lab names
 	for _, server := range allServers {
@@ -63,15 +87,53 @@ func (p *HetznerProvider) ListLabs(opts options.LabListOpts) ([]*types.Lab, erro
 			labsMap[server.Labels["lab_name"]] = &types.Lab{}
 		}
 	}
-	labs := make([]*types.Lab, 0)
 	for labName := range labsMap {
 		lab, err := p.GetLab(labName)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		labs = append(labs, lab)
+		labsMap[labName] = lab
 	}
-	return labs, nil
+	return p.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(p.labBucket)
+
+		// Clear existing data
+		if err := b.ForEach(func(k, v []byte) error {
+			return b.Delete(k)
+		}); err != nil {
+			return err
+		}
+
+		// Store new data
+		for labName, lab := range labsMap {
+			data, err := json.Marshal(lab)
+			if err != nil {
+				return err
+			}
+			if err := b.Put([]byte(labName), data); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (p *HetznerProvider) ListLabs(opts options.LabListOpts) ([]*types.Lab, error) {
+	var labs []*types.Lab
+
+	err := p.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(p.labBucket)
+		return b.ForEach(func(k, v []byte) error {
+			var lab types.Lab
+			if err := json.Unmarshal(v, &lab); err != nil {
+				return err
+			}
+			labs = append(labs, &lab)
+			return nil
+		})
+	})
+
+	return labs, err
 }
 
 func (p *HetznerProvider) DeleteLab(labName string, force bool) error {
