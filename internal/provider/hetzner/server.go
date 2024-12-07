@@ -24,7 +24,7 @@ func (p *HetznerProvider) CreateServer(opts options.ServerCreateOpts) (*types.Se
 	for _, sshKey := range opts.SSHKeys {
 		sshKeyNames = append(sshKeyNames, sshKey.ObjectMeta.Name)
 	}
-	p.logger.Info("creating server",
+	p.logger.Debug("creating server",
 		"name", opts.Name,
 		"type", opts.Type,
 		"image", opts.Image,
@@ -42,7 +42,7 @@ func (p *HetznerProvider) CreateServer(opts options.ServerCreateOpts) (*types.Se
 		return nil, fmt.Errorf("no SSH keys provided")
 	}
 	serverOpts.SSHKeys = hCloudSSHKeys
-	p.logger.Info("creating server",
+	p.logger.Debug("creating server",
 		"name", opts.Name,
 		"type", opts.Type,
 		"image", opts.Image,
@@ -52,7 +52,7 @@ func (p *HetznerProvider) CreateServer(opts options.ServerCreateOpts) (*types.Se
 	if err != nil {
 		return nil, err
 	}
-	p.logger.Info("successfully created server",
+	p.logger.Debug("successfully created server",
 		"name", opts.Name,
 		"ip", server.Server.PublicNet.IPv4.IP)
 
@@ -88,38 +88,63 @@ func (p *HetznerProvider) AllServers() ([]*types.Server, error) {
 	return p.mapServers(servers), nil
 }
 
-func (p *HetznerProvider) DeleteServer(serverName string, force bool) error {
+func (p *HetznerProvider) DeleteServer(serverName string, force bool) *types.ServerDeleteStatus {
 	if serverName == "" {
-		return fmt.Errorf("empty server name provided")
+		return &types.ServerDeleteStatus{
+			Error: fmt.Errorf("empty server name provided"),
+		}
 	}
 	server, _, err := p.Client.Server.Get(context.Background(), serverName)
 	if err != nil {
-		return err
+		return &types.ServerDeleteStatus{
+			Error: err,
+		}
 	}
 	if server == nil {
-		p.logger.Info("Server not found, skipping",
+		p.logger.Debug("Server not found, skipping",
 			"server", serverName)
-		return nil
+		return &types.ServerDeleteStatus{
+			Deleted: true,
+		}
 	}
 	if !force {
 		if deleteAfterStr, ok := server.Labels["delete_after"]; ok {
-			deleteAfter, err := time.Parse(time.RFC3339, deleteAfterStr)
-			if err == nil && time.Now().Before(deleteAfter) {
+			p.logger.Debug("checking delete_after",
+				"server", serverName,
+				"delete_after", deleteAfterStr)
+			deleteAfter, err := time.Parse("2006-01-02-15-04", deleteAfterStr)
+			if err != nil {
+				return &types.ServerDeleteStatus{
+					Error: fmt.Errorf("invalid delete_after value: %s", deleteAfterStr),
+				}
+			}
+			if err == nil && time.Now().UTC().Before(deleteAfter) {
 				p.logger.Warn("server not ready for deletion",
 					"server", serverName,
 					"delete_after", deleteAfter.Format("2006-01-02 15:04:05"))
-				return fmt.Errorf("server %s is not ready for deletion until %s", serverName, deleteAfter)
+				return &types.ServerDeleteStatus{
+					DeleteAfter: deleteAfter,
+				}
 			}
 		}
 	}
 	for _, volume := range server.Volumes {
 		_, _, err = p.Client.Volume.Detach(context.Background(), volume)
 		if err != nil {
-			return err
+			return &types.ServerDeleteStatus{
+				Error: err,
+			}
 		}
 	}
 	_, _, err = p.Client.Server.DeleteWithResult(context.Background(), server)
-	return err
+	if err != nil {
+		return &types.ServerDeleteStatus{
+			Error: err,
+		}
+	}
+	return &types.ServerDeleteStatus{
+		Deleted: true,
+	}
 }
 
 // mapServer converts a Hetzner-specific server to our generic Server type
@@ -149,13 +174,13 @@ func (p *HetznerProvider) mapServer(s *hcloud.Server) *types.Server {
 			Labels: s.Labels,
 		},
 		Spec: types.ServerSpec{
-			Type:     s.ServerType.Name,
-			Location: s.Datacenter.Location.Name,
-			Provider: "hetzner",
-			Image:    s.Image.Name,
-			Labels:   s.Labels,
-			Volumes:  p.mapVolumes(volumes),
-			TTL:      s.Labels["ttl"],
+			ServerType: s.ServerType.Name,
+			Location:   s.Datacenter.Location.Name,
+			Provider:   "hetzner",
+			Image:      s.Image.Name,
+			Labels:     s.Labels,
+			Volumes:    p.mapVolumes(volumes),
+			TTL:        s.Labels["ttl"],
 		},
 		Status: types.ServerStatus{
 			Status:      string(s.Status),

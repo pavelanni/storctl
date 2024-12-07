@@ -24,11 +24,15 @@ func New(cfg *config.Config) (*HetznerProvider, error) {
 		return nil, fmt.Errorf("Hetzner API token is required")
 	}
 
+	// Create a new logger with the configured log level
+	logLevel := logger.ParseLevel(cfg.LogLevel)
+	providerLogger := logger.NewLogger(logLevel)
+
 	client := hcloud.NewClient(hcloud.WithToken(token))
 	p := &HetznerProvider{
 		Client:    client,
 		config:    cfg,
-		logger:    logger.GetLogger(),
+		logger:    providerLogger,
 		labBucket: []byte("labs"),
 	}
 	// Open the database

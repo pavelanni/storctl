@@ -1,0 +1,17 @@
+provider:
+  name: "hetzner"
+  location: "nbg1"
+  # AIStor token
+  #token: "GwSqUxfJYgMDDa1fYi8QUwqju2R0DHYVgRe20WyYcYFARdazqabcjFXw9tHXZsQJ"
+  # kubernetes (Pavel) token
+  token: "5XN4QfA81F9jMo1nR5QmRK08GuFpPgketoxiYfSDZ5MLdFrYusbXQmXfMLpmAZcL"
+  credentials:
+dns:
+  provider: "cloudflare"
+  domain: "aistorlabs.com"
+  token: "0ou6A0KE-sDDxcNw5PODvHUd1jtin6dPgp7XGDW3"
+  zone_id: "d29c82b432e5e48db8ec458d025e39be"
+
+email: "pavel@min.io"
+organization: "MinIO Training"
+owner: "Pavel Anni"

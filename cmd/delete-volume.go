@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -16,22 +17,19 @@ func NewDeleteVolumeCmd() *cobra.Command {
 			assumeYes, _ := cmd.Flags().GetBool("yes")
 			skipTimeCheck, _ := cmd.Flags().GetBool("force")
 
-			if !assumeYes {
-				fmt.Printf("Are you sure you want to delete volume %s? [y/N] ", volumeName)
-				var response string
-				_, err := fmt.Scanln(&response)
-				if err != nil {
-					return fmt.Errorf("failed to read response: %w", err)
-				}
-				if response != "y" && response != "Y" {
-					fmt.Println("Operation cancelled")
-					return nil
-				}
+			if !assumeYes && !askForConfirmationSimple("volume", volumeName) {
+				fmt.Println("Operation cancelled")
+				return nil
 			}
 
 			// Delete the volume using cloud provider
-			if err := providerSvc.DeleteVolume(volumeName, skipTimeCheck); err != nil {
-				return fmt.Errorf("failed to delete volume: %w", err)
+			status := providerSvc.DeleteVolume(volumeName, skipTimeCheck)
+			if status.Error != nil {
+				return fmt.Errorf("failed to delete volume: %w", status.Error)
+			}
+			if !status.Deleted && status.DeleteAfter.After(time.Now().UTC()) {
+				fmt.Printf("Volume %s is not ready for deletion until %s UTC\n", volumeName, status.DeleteAfter.Format("2006-01-02 15:04:05"))
+				return nil
 			}
 
 			fmt.Printf("Successfully deleted volume %s\n", volumeName)

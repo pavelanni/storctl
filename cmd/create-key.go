@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 
 	"github.com/pavelanni/labshop/internal/config"
-	"github.com/pavelanni/labshop/internal/logger"
 	"github.com/pavelanni/labshop/internal/provider/options"
 	"github.com/pavelanni/labshop/internal/types"
 	"github.com/pavelanni/labshop/internal/util/labelutil"
@@ -45,8 +44,7 @@ func NewCreateKeyCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			logger.Info("SSH key created successfully",
-				"key", key.ObjectMeta.Name)
+			fmt.Printf("SSH key created successfully: %s\n", key.ObjectMeta.Name)
 			return nil
 		},
 	}
@@ -115,9 +113,7 @@ func createKey(key *types.SSHKey) (*types.SSHKey, error) {
 			return nil, fmt.Errorf("failed to save public key: %w", err)
 		}
 		pubKeyString = string(pubKey)
-		logger.Info("SSH key pair created successfully",
-			"private_key", privKeyPath,
-			"public_key", pubKeyPath)
+		fmt.Printf("SSH key pair created successfully: %s\n", keyName)
 		key.Spec.PublicKey = pubKeyString
 	}
 
@@ -131,8 +127,7 @@ func createKey(key *types.SSHKey) (*types.SSHKey, error) {
 		return nil, fmt.Errorf("failed to upload public key: %w", err)
 	}
 
-	logger.Info("SSH key uploaded to provider",
-		"key", keyName)
+	fmt.Printf("SSH key uploaded to provider: %s\n", keyName)
 	return key, nil
 }
 

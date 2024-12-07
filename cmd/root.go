@@ -17,6 +17,7 @@ var (
 	cfg         *config.Config
 	providerSvc provider.CloudProvider
 	dnsSvc      *dns.CloudflareDNSProvider
+	logLevel    string
 )
 
 func NewRootCmd() *cobra.Command {
@@ -24,6 +25,14 @@ func NewRootCmd() *cobra.Command {
 		Use:   "labshop",
 		Short: "Labshop - Lab Environment Manager",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			// Initialize everything before running any command execpt init
+			if cmd.Name() == "init" {
+				return nil
+			}
+			initConfig()
+			initProvider()
+			initDNS()
+
 			return nil
 		},
 	}
@@ -31,25 +40,21 @@ func NewRootCmd() *cobra.Command {
 	// Global flags
 	defaultConfigFile := filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, "config.yaml")
 	cmd.PersistentFlags().StringVar(&cfgFile, "config", defaultConfigFile, "config file")
-	cmd.PersistentFlags().Bool("debug", false, "enable debug output")
+	cmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "logging level (debug, info, warn, error)")
+	err := viper.BindPFlag("log_level", cmd.PersistentFlags().Lookup("log-level"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error binding log level flag: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Add commands
-	cmd.AddCommand(NewInitCmd())
-
-	// Only add other commands if not running 'init'
-	if len(os.Args) > 1 && os.Args[1] != "init" {
-		// Initialize everything before adding other commands
-		initConfig()
-		initProvider()
-		initDNS()
-		cmd.AddCommand(
-			NewGetCmd(),
-			NewDeleteCmd(),
-			NewConfigCmd(),
-			NewCreateCmd(),
-			NewSyncCmd(),
-		)
-	}
+	cmd.AddCommand(NewInitCmd(),
+		NewGetCmd(),
+		NewDeleteCmd(),
+		NewConfigCmd(),
+		NewCreateCmd(),
+		NewSyncCmd(),
+	)
 
 	return cmd
 }
@@ -90,6 +95,8 @@ func initConfig() {
 		fmt.Fprintf(os.Stderr, "Error unmarshaling config: %v\n", err)
 		os.Exit(1)
 	}
+
+	cfg.LogLevel = viper.GetString("log_level")
 }
 
 func initProvider() {

@@ -12,7 +12,7 @@ import (
 )
 
 func (p *HetznerProvider) CreateSSHKey(opts options.SSHKeyCreateOpts) (*types.SSHKey, error) {
-	p.logger.Info("creating SSH key",
+	p.logger.Debug("creating SSH key",
 		"name", opts.Name,
 		"public_key", opts.PublicKey)
 	sshKey, _, err := p.Client.SSHKey.Create(context.Background(), hcloud.SSHKeyCreateOpts{
@@ -27,14 +27,14 @@ func (p *HetznerProvider) CreateSSHKey(opts options.SSHKeyCreateOpts) (*types.SS
 }
 
 func (p *HetznerProvider) GetSSHKey(name string) (*types.SSHKey, error) {
-	p.logger.Info("getting SSH key",
+	p.logger.Debug("getting SSH key",
 		"key", name)
 	sshKey, _, err := p.Client.SSHKey.GetByName(context.Background(), name)
 	if err != nil {
 		return nil, err
 	}
 	if sshKey == nil {
-		p.logger.Info("SSH key not found",
+		p.logger.Debug("SSH key not found",
 			"key", name)
 		return nil, fmt.Errorf("SSH key not found")
 	}
@@ -61,42 +61,51 @@ func (p *HetznerProvider) AllSSHKeys() ([]*types.SSHKey, error) {
 	return mapSSHKeys(sshKeys), nil
 }
 
-func (p *HetznerProvider) DeleteSSHKey(name string, force bool) error {
+func (p *HetznerProvider) DeleteSSHKey(name string, force bool) *types.SSHKeyDeleteStatus {
 	if name == "" {
-		return fmt.Errorf("empty SSH key name provided")
+		return &types.SSHKeyDeleteStatus{
+			Error: fmt.Errorf("empty SSH key name provided"),
+		}
 	}
 
 	keyExists, err := p.KeyExists(name)
 	if err != nil {
-		return err
+		return &types.SSHKeyDeleteStatus{
+			Error: err,
+		}
 	}
 	if !keyExists {
-		p.logger.Info("SSH key not found, skipping",
+		p.logger.Debug("SSH key not found, skipping",
 			"key", name)
-		return nil
+		return &types.SSHKeyDeleteStatus{
+			Deleted: true,
+		}
 	}
 
 	sshKey, _, err := p.Client.SSHKey.GetByName(context.Background(), name)
 	if err != nil {
 		p.logger.Error("failed to get SSH key",
 			"key", name)
-		return err
+		return &types.SSHKeyDeleteStatus{
+			Error: err,
+		}
 	}
 
 	if !force {
 		if deleteAfterStr, ok := sshKey.Labels["delete_after"]; ok {
 			deleteAfter, err := time.Parse(time.RFC3339, deleteAfterStr)
-			if err == nil && time.Now().Before(deleteAfter) {
+			if err == nil && time.Now().UTC().Before(deleteAfter) {
 				p.logger.Warn("key not ready for deletion",
 					"key", name,
 					"delete_after", deleteAfter.Format("2006-01-02 15:04:05"))
-				return fmt.Errorf("key %s is not ready for deletion until %s",
-					name, deleteAfter.Format("2006-01-02 15:04:05"))
+				return &types.SSHKeyDeleteStatus{
+					DeleteAfter: deleteAfter,
+				}
 			}
 		}
 	}
 
-	p.logger.Info("deleting SSH key",
+	p.logger.Debug("deleting SSH key",
 		"key", name)
 
 	_, err = p.Client.SSHKey.Delete(context.Background(), sshKey)
@@ -104,7 +113,9 @@ func (p *HetznerProvider) DeleteSSHKey(name string, force bool) error {
 		p.logger.Error("failed to delete SSH key",
 			"key", name)
 	}
-	return err
+	return &types.SSHKeyDeleteStatus{
+		Deleted: true,
+	}
 }
 
 func (p *HetznerProvider) KeyExists(name string) (bool, error) {

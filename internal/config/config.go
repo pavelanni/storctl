@@ -12,8 +12,8 @@ type Config struct {
 	Email        string         `mapstructure:"email" yaml:"email"`
 	Organization string         `mapstructure:"organization" yaml:"organization"`
 	Owner        string         `mapstructure:"owner" yaml:"owner"`
-	Debug        bool
 	OutputFormat string
+	LogLevel     string
 }
 
 type ProviderConfig struct {
@@ -79,8 +79,6 @@ func LoadConfig(configPath string) (*Config, error) {
 	if config.Provider.Name == "" {
 		return nil, fmt.Errorf("Provider is not set in the config file")
 	}
-	// DEBUG
-	fmt.Printf("config: %+v\n", config)
 	return &config, nil
 }
 

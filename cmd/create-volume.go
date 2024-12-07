@@ -47,11 +47,11 @@ func NewCreateVolumeCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().IntVar(&size, "size", 10, "Volume size in GB")
+	cmd.Flags().IntVar(&size, "size", config.DefaultVolumeSize, "Volume size in GB")
 	cmd.Flags().StringVar(&server, "server", "", "Server to attach the volume to")
 	cmd.Flags().StringToStringVar(&labels, "labels", map[string]string{}, "Volume labels")
 	cmd.Flags().BoolVar(&automount, "automount", false, "Automount the volume")
-	cmd.Flags().StringVar(&format, "format", "xfs", "Volume format")
+	cmd.Flags().StringVar(&format, "format", config.DefaultVolumeFormat, "Volume format")
 	if err := cmd.MarkFlagRequired("server"); err != nil {
 		panic(err)
 	}

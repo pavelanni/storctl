@@ -27,6 +27,9 @@ const (
 
 	// ConfigFileName is the name of the configuration file
 	ConfigFileName = "config.yaml"
+
+	// DefaultAdminUser is the default admin user
+	DefaultAdminUser = "ansible"
 )
 
 // Provider related constants
@@ -39,6 +42,12 @@ const (
 
 	// DefaultLocation is the default location
 	DefaultLocation = "nbg1"
+
+	// DefaultImage is the default image
+	DefaultImage = "ubuntu-24.04"
+
+	// DefaultServerType is the default server type
+	DefaultServerType = "cx22"
 
 	// DefaultToken is the default token
 	DefaultToken = "NO TOKEN SET"

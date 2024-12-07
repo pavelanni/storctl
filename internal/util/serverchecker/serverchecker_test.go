@@ -5,19 +5,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pavelanni/labshop/internal/config"
 	"github.com/pavelanni/labshop/internal/types"
 )
 
 func TestNewServerChecker(t *testing.T) {
 	// Test creation with invalid key path
-	_, err := NewServerChecker("localhost:22", "testuser", "/nonexistent/key", 1*time.Minute, 1)
+	_, err := NewServerChecker("localhost:22", config.DefaultAdminUser, "/nonexistent/key", "debug", 1*time.Minute, 1)
 	if err == nil {
 		t.Error("Expected error for nonexistent key, got nil")
 	}
 
 	// Test creation with valid parameters (you'll need to provide a real test key)
 	// TODO: Add path to a test SSH key
-	checker, err := NewServerChecker("localhost:22", "testuser", "testdata/test_key", 1*time.Minute, 1)
+	checker, err := NewServerChecker("localhost:22", "testuser", "testdata/test_key", "debug", 1*time.Minute, 1)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -63,12 +64,8 @@ func TestCheckServers(t *testing.T) {
 		},
 	}
 
-	// Create a context with a longer timeout for real servers
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
 	// Run the check
-	results, err := CheckServers(ctx, servers)
+	results, err := CheckServers(servers, "debug", 2*time.Minute, 20)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -101,6 +98,7 @@ func TestServerChecker_checkServerReady(t *testing.T) {
 		"192.0.2.1:22", // non-routable IP
 		"testuser",
 		"testdata/test_key",
+		"debug",
 		5*time.Second, // total timeout
 		3,             // number of attempts
 	)

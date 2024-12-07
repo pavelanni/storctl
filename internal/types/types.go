@@ -23,7 +23,7 @@ type Server struct {
 
 // Server represents a generic server across providers
 type ServerSpec struct {
-	Type        string            `json:"type"`
+	ServerType  string            `json:"serverType"`
 	Image       string            `json:"image"`
 	Location    string            `json:"location"`
 	Provider    string            `json:"provider"`
@@ -42,6 +42,12 @@ type ServerStatus struct {
 	PublicNet   *PublicNet `json:"publicNet"`
 	Created     time.Time  `json:"created"`
 	DeleteAfter time.Time  `json:"deleteAfter"`
+}
+
+type ServerDeleteStatus struct {
+	Deleted     bool      `json:"deleted"`
+	DeleteAfter time.Time `json:"deleteAfter"`
+	Error       error     `json:"error"`
 }
 
 type Volume struct {
@@ -70,6 +76,12 @@ type VolumeStatus struct {
 	DeleteAfter time.Time `json:"deleteAfter"`
 }
 
+type VolumeDeleteStatus struct {
+	Deleted     bool      `json:"deleted"`
+	DeleteAfter time.Time `json:"deleteAfter"`
+	Error       error     `json:"error"`
+}
+
 type Lab struct {
 	TypeMeta   `json:",inline"`
 	ObjectMeta `json:"metadata,omitempty"`
@@ -95,9 +107,9 @@ type LabStatus struct {
 }
 
 type LabServerSpec struct {
-	Name  string `json:"name"`
-	Type  string `json:"type"`
-	Image string `json:"image"`
+	Name       string `json:"name"`
+	ServerType string `json:"serverType"`
+	Image      string `json:"image"`
 }
 
 type LabVolumeSpec struct {
@@ -106,6 +118,12 @@ type LabVolumeSpec struct {
 	Size      int    `json:"size"`
 	Format    string `json:"format"`
 	Automount bool   `json:"automount"`
+}
+
+type LabDeleteStatus struct {
+	Deleted     bool      `json:"deleted"`
+	DeleteAfter time.Time `json:"deleteAfter"`
+	Error       error     `json:"error"`
 }
 
 type SSHKey struct {
@@ -126,6 +144,12 @@ type SSHKeyStatus struct {
 	Owner       string    `json:"owner"`
 	Created     time.Time `json:"created"`
 	DeleteAfter time.Time `json:"deleteAfter"`
+}
+
+type SSHKeyDeleteStatus struct {
+	Deleted     bool      `json:"deleted"`
+	DeleteAfter time.Time `json:"deleteAfter"`
+	Error       error     `json:"error"`
 }
 
 // Resource represents the common fields for all resources

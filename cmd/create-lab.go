@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/pavelanni/labshop/internal/config"
 	"github.com/pavelanni/labshop/internal/types"
@@ -46,8 +46,8 @@ func NewCreateLabCmd() *cobra.Command {
 
 	defaultTemplate := filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, config.DefaultTemplateDir, "lab.yaml")
 	cmd.Flags().StringVar(&template, "template", defaultTemplate, "lab template to use")
-	cmd.Flags().StringVar(&provider, "provider", cfg.Provider.Name, "provider to use")
-	cmd.Flags().StringVar(&location, "location", cfg.Provider.Location, "location to use")
+	cmd.Flags().StringVar(&provider, "provider", config.DefaultProvider, "provider to use")
+	cmd.Flags().StringVar(&location, "location", config.DefaultLocation, "location to use")
 	cmd.Flags().StringVar(&ttl, "ttl", config.DefaultTTL, "ttl to use")
 
 	return cmd
@@ -81,7 +81,7 @@ func createLab(lab *types.Lab) (*types.Lab, error) {
 			Spec: types.ServerSpec{
 				Location:    lab.Spec.Location,
 				Provider:    lab.Spec.Provider,
-				Type:        serverSpec.Type,
+				ServerType:  serverSpec.ServerType,
 				TTL:         ttl,
 				Image:       serverSpec.Image,
 				SSHKeyNames: keyNames,
@@ -96,13 +96,30 @@ func createLab(lab *types.Lab) (*types.Lab, error) {
 		}
 		servers = append(servers, result)
 	}
+	// Add a DNS record for 'aistor.' using the IP of the control plane server
+	cpPublicNet := servers[0].Status.PublicNet
+	aistorServer := &types.Server{
+		ObjectMeta: types.ObjectMeta{
+			Name:   strings.Join([]string{lab.ObjectMeta.Name, "aistor"}, "-"),
+			Labels: lab.ObjectMeta.Labels,
+		},
+		Status: types.ServerStatus{
+			PublicNet: cpPublicNet,
+		},
+	}
+	if err := addDNSRecord(aistorServer); err != nil {
+		return nil, err
+	}
+
 	// Wait for servers to be ready
-	results, err := serverchecker.CheckServers(context.Background(), servers)
+	timeout := 30 * time.Minute
+	attempts := 20
+	results, err := serverchecker.CheckServers(servers, cfg.LogLevel, timeout, attempts)
 	if err != nil {
 		return nil, err
 	}
 	for _, result := range results {
-		fmt.Printf("Server %s: %+v\n", result.Server.ObjectMeta.Name, result)
+		fmt.Printf("Server %s: Ready: %v\n", result.Server.ObjectMeta.Name, result.Ready)
 		if !result.Ready {
 			return nil, fmt.Errorf("server %s not ready", result.Server.ObjectMeta.Name)
 		}
@@ -163,8 +180,12 @@ func addDNSRecord(server *types.Server) error {
 	if !ok {
 		labName = "no-lab"
 	}
+	labName = strings.ToLower(labName)
+	serverName := strings.ToLower(server.Name)
+	// remove the leading labName with "-" from the serverName
+	serverName = strings.TrimPrefix(serverName, labName+"-")
 	err := dnsSvc.AddRecord(cfg.DNS.ZoneID,
-		strings.Join([]string{server.Name, labName}, "."),
+		strings.Join([]string{serverName, labName}, "."),
 		"A",
 		server.Status.PublicNet.IPv4.IP,
 		false)

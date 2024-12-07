@@ -12,7 +12,7 @@ func (p *HetznerProvider) CreateLab(name string, template string) error {
 	return nil
 }
 
-func (p *HetznerProvider) GetLab(labName string) (*types.Lab, error) {
+func (p *HetznerProvider) GetLabFromCloud(labName string) (*types.Lab, error) {
 	lab := &types.Lab{
 		TypeMeta: types.TypeMeta{
 			APIVersion: "v1",
@@ -54,7 +54,7 @@ func (p *HetznerProvider) GetLab(labName string) (*types.Lab, error) {
 	return lab, nil
 }
 
-func (p *HetznerProvider) GetLabFromDB(labName string) (*types.Lab, error) {
+func (p *HetznerProvider) GetLab(labName string) (*types.Lab, error) {
 	var lab *types.Lab
 
 	err := p.db.View(func(tx *bbolt.Tx) error {
@@ -63,19 +63,30 @@ func (p *HetznerProvider) GetLabFromDB(labName string) (*types.Lab, error) {
 		if data == nil {
 			// If not in cache, fetch from cloud
 			var err error
-			lab, err = p.GetLab(labName)
+			lab, err = p.GetLabFromCloud(labName)
+			if err == nil {
+				// store in cache
+				data, err := json.Marshal(lab)
+				if err != nil {
+					return err
+				}
+				return b.Put([]byte(labName), data)
+			}
 			return err
 		}
 
 		lab = &types.Lab{}
-		return json.Unmarshal(data, lab)
+		if err := json.Unmarshal(data, lab); err != nil {
+			return err
+		}
+		return nil
 	})
 
 	return lab, err
 }
 
 func (p *HetznerProvider) SyncLabs() error {
-	p.logger.Info("syncing labs")
+	p.logger.Debug("syncing labs")
 	labsMap := make(map[string]*types.Lab)
 	allServers, err := p.AllServers()
 	if err != nil {
@@ -88,7 +99,7 @@ func (p *HetznerProvider) SyncLabs() error {
 		}
 	}
 	for labName := range labsMap {
-		lab, err := p.GetLab(labName)
+		lab, err := p.GetLabFromCloud(labName)
 		if err != nil {
 			return err
 		}
@@ -136,17 +147,15 @@ func (p *HetznerProvider) ListLabs(opts options.LabListOpts) ([]*types.Lab, erro
 	return labs, err
 }
 
-func (p *HetznerProvider) DeleteLab(labName string, force bool) error {
-	p.logger.Info("starting lab deletion",
-		"lab", labName,
-		"force", force)
-
+func (p *HetznerProvider) DeleteLab(labName string, force bool) *types.LabDeleteStatus {
 	lab, err := p.GetLab(labName)
 	if err != nil {
 		p.logger.Error("failed to get lab details",
 			"lab", labName,
 			"error", err)
-		return err
+		return &types.LabDeleteStatus{
+			Error: err,
+		}
 	}
 
 	// Get all SSH keys
@@ -155,53 +164,76 @@ func (p *HetznerProvider) DeleteLab(labName string, force bool) error {
 		p.logger.Error("failed to get SSH keys",
 			"lab", labName,
 			"error", err)
-		return err
+		return &types.LabDeleteStatus{
+			Error: err,
+		}
 	}
 
-	p.logger.Info("deleting lab",
+	p.logger.Debug("deleting lab",
 		"lab", lab.Name,
-		"servers", len(lab.Spec.Servers),
-		"volumes", len(lab.Spec.Volumes))
+		"servers", len(lab.Status.Servers),
+		"volumes", len(lab.Status.Volumes))
 
 	// Delete volumes first
-	for _, volume := range lab.Spec.Volumes {
-		p.logger.Info("deleting volume",
+	for _, volume := range lab.Status.Volumes {
+		p.logger.Debug("deleting volume",
 			"volume", volume.Name)
-		if err := p.DeleteVolume(volume.Name, force); err != nil {
+		if status := p.DeleteVolume(volume.Name, force); status.Error != nil {
 			p.logger.Error("failed to delete volume",
 				"volume", volume.Name,
-				"error", err)
-			return err
+				"error", status.Error)
+			return &types.LabDeleteStatus{
+				Error: status.Error,
+			}
 		}
 	}
 
 	// Delete servers
-	for _, server := range lab.Spec.Servers {
-		p.logger.Info("deleting server",
+	for _, server := range lab.Status.Servers {
+		p.logger.Debug("deleting server",
 			"server", server.Name)
-		if err := p.DeleteServer(server.Name, force); err != nil {
+		if status := p.DeleteServer(server.Name, force); status.Error != nil {
 			p.logger.Error("failed to delete server",
 				"server", server.Name,
-				"error", err)
-			return err
+				"error", status.Error)
+			return &types.LabDeleteStatus{
+				Error: status.Error,
+			}
 		}
 	}
 
 	// Delete SSH keys associated with this lab
 	for _, sshKey := range sshKeys {
 		if sshKey.Labels["lab_name"] == labName {
-			p.logger.Info("deleting SSH key",
+			p.logger.Debug("deleting SSH key",
 				"key", sshKey.Name)
-			if err := p.DeleteSSHKey(sshKey.Name, force); err != nil {
+			if status := p.DeleteSSHKey(sshKey.Name, force); status.Error != nil {
 				p.logger.Error("failed to delete SSH key",
 					"key", sshKey.Name,
-					"error", err)
-				return err
+					"error", status.Error)
+				return &types.LabDeleteStatus{
+					Error: status.Error,
+				}
 			}
 		}
 	}
 
-	p.logger.Info("lab deletion completed successfully",
+	p.logger.Debug("lab deletion from the cloud completed successfully",
 		"lab", labName)
-	return nil
+
+	// Delete from the database
+	if err := p.db.Update(func(tx *bbolt.Tx) error {
+		return tx.Bucket(p.labBucket).Delete([]byte(labName))
+	}); err != nil {
+		p.logger.Error("failed to delete lab from the database",
+			"lab", labName,
+			"error", err)
+		return &types.LabDeleteStatus{
+			Error: err,
+		}
+	}
+
+	return &types.LabDeleteStatus{
+		Deleted: true,
+	}
 }

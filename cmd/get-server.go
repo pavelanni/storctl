@@ -43,7 +43,7 @@ func listServers() error {
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
 			server.Name,
-			server.Spec.Type,
+			server.Spec.ServerType,
 			server.Status.Owner,
 			timeutil.FormatAge(server.Status.Created),
 			deleteAfter)
@@ -71,7 +71,7 @@ func getServer(serverID string) error {
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
 			server.Name,
-			server.Spec.Type,
+			server.Spec.ServerType,
 			server.Status.Owner,
 			timeutil.FormatAge(server.Status.Created),
 			deleteAfter)

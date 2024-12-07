@@ -20,7 +20,7 @@ func (p *HetznerProvider) CreateVolume(opts options.VolumeCreateOpts) (*types.Vo
 		if opts.Location == "" {
 			return nil, fmt.Errorf("location is required when server name is empty")
 		}
-		p.logger.Info("server name is empty, using location instead",
+		p.logger.Debug("server name is empty, using location instead",
 			"location", opts.Location)
 	} else {
 		hCloudServer, _, err = p.Client.Server.GetByName(context.Background(), opts.ServerName)
@@ -50,7 +50,7 @@ func (p *HetznerProvider) CreateVolume(opts options.VolumeCreateOpts) (*types.Vo
 		Automount: &opts.Automount,
 		Format:    &opts.Format,
 	}
-	p.logger.Info("creating volume",
+	p.logger.Debug("creating volume",
 		"name", volumeOpts.Name,
 		"size", volumeOpts.Size,
 		"server", volumeOpts.Server.Name,
@@ -61,7 +61,7 @@ func (p *HetznerProvider) CreateVolume(opts options.VolumeCreateOpts) (*types.Vo
 	if err != nil {
 		return nil, err
 	}
-	p.logger.Info("successfully created volume",
+	p.logger.Debug("successfully created volume",
 		"name", volumeOpts.Name)
 	return p.mapVolume(volume.Volume), nil
 }
@@ -117,42 +117,68 @@ func (p *HetznerProvider) AllVolumes() ([]*types.Volume, error) {
 	return p.mapVolumes(volumes), nil
 }
 
-func (p *HetznerProvider) DeleteVolume(volumeName string, force bool) error {
+func (p *HetznerProvider) DeleteVolume(volumeName string, force bool) *types.VolumeDeleteStatus {
 	if volumeName == "" {
-		return fmt.Errorf("empty volume name provided")
+		return &types.VolumeDeleteStatus{
+			Error: fmt.Errorf("empty volume name provided"),
+		}
 	}
 	volume, _, err := p.Client.Volume.Get(context.Background(), volumeName)
 	if err != nil {
-		return err
+		return &types.VolumeDeleteStatus{
+			Error: err,
+		}
 	}
 	if volume == nil {
-		p.logger.Info("Volume not found, skipping",
+		p.logger.Debug("Volume not found, skipping",
 			"volume", volumeName)
-		return nil
+		return &types.VolumeDeleteStatus{
+			Deleted: true,
+		}
 	}
 	if !force {
 		if deleteAfterStr, ok := volume.Labels["delete_after"]; ok {
-			deleteAfter, err := time.Parse(time.RFC3339, deleteAfterStr)
-			if err == nil && time.Now().Before(deleteAfter) {
+			deleteAfter, err := time.Parse("2006-01-02-15-04", deleteAfterStr)
+			if err != nil {
+				p.logger.Error("failed to parse delete_after label",
+					"volume", volumeName,
+					"delete_after", deleteAfterStr,
+					"error", err)
+				return &types.VolumeDeleteStatus{
+					Error: err,
+				}
+			}
+			if time.Now().UTC().Before(deleteAfter) {
 				p.logger.Warn("volume not ready for deletion",
 					"volume", volumeName,
 					"delete_after", deleteAfter.Format("2006-01-02 15:04:05"))
-				return fmt.Errorf("volume %s is not ready for deletion until %s", volumeName, deleteAfter)
+				return &types.VolumeDeleteStatus{
+					DeleteAfter: deleteAfter,
+				}
 			}
 		}
 	}
 	// check if volume is attached to any server
 	if volume.Server != nil {
-		p.logger.Info("volume is attached to server, detaching",
+		p.logger.Debug("volume is attached to server, detaching",
 			"volume", volume.Name,
 			"server", volume.Server.Name)
 		_, _, err = p.Client.Volume.Detach(context.Background(), volume)
 		if err != nil {
-			return err
+			return &types.VolumeDeleteStatus{
+				Error: err,
+			}
 		}
 	}
 	_, err = p.Client.Volume.Delete(context.Background(), volume)
-	return err
+	if err != nil {
+		return &types.VolumeDeleteStatus{
+			Error: err,
+		}
+	}
+	return &types.VolumeDeleteStatus{
+		Deleted: true,
+	}
 }
 
 // mapVolume converts a Hetzner-specific volume to our generic Volume type

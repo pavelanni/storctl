@@ -16,22 +16,14 @@ func NewDeleteLabCmd() *cobra.Command {
 			assumeYes, _ := cmd.Flags().GetBool("yes")
 			skipTimeCheck, _ := cmd.Flags().GetBool("force")
 
-			if !assumeYes {
-				fmt.Printf("Are you sure you want to delete lab %s? [y/N] ", labName)
-				var response string
-				_, err := fmt.Scanln(&response)
-				if err != nil {
-					return fmt.Errorf("failed to read response: %w", err)
-				}
-				if response != "y" && response != "Y" {
-					fmt.Println("Operation cancelled")
-					return nil
-				}
+			if !assumeYes && !askForConfirmationSimple("lab", labName) {
+				fmt.Println("Operation cancelled")
+				return nil
 			}
 
 			// Delete the lab using cloud provider
-			if err := providerSvc.DeleteLab(labName, skipTimeCheck); err != nil {
-				return fmt.Errorf("failed to delete lab: %w", err)
+			if status := providerSvc.DeleteLab(labName, skipTimeCheck); status.Error != nil {
+				return fmt.Errorf("failed to delete lab: %w", status.Error)
 			}
 
 			fmt.Printf("Successfully deleted lab %s\n", labName)

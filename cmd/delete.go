@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/pavelanni/labshop/internal/logger"
 	"github.com/pavelanni/labshop/internal/types"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -47,10 +46,6 @@ func NewDeleteCmd() *cobra.Command {
 }
 
 func deleteFromFile(filename string, assumeYes, skipTimeCheck bool) error {
-	logger.Info("processing delete operation from file",
-		"filename", filename,
-		"assumeYes", assumeYes,
-		"skipTimeCheck", skipTimeCheck)
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return fmt.Errorf("error reading file: %w", err)
@@ -85,23 +80,23 @@ func processDeleteResource(resource *types.Resource, assumeYes, skipTimeCheck bo
 	}
 	switch resource.Kind {
 	case "Server":
-		if err := providerSvc.DeleteServer(resourceName, skipTimeCheck); err != nil {
-			return fmt.Errorf("failed to delete server: %w", err)
+		if status := providerSvc.DeleteServer(resourceName, skipTimeCheck); status.Error != nil {
+			return fmt.Errorf("failed to delete server: %w", status.Error)
 		}
 		return nil
 	case "Volume":
-		if err := providerSvc.DeleteVolume(resourceName, skipTimeCheck); err != nil {
-			return fmt.Errorf("failed to delete volume: %w", err)
+		if status := providerSvc.DeleteVolume(resourceName, skipTimeCheck); status.Error != nil {
+			return fmt.Errorf("failed to delete volume: %w", status.Error)
 		}
 		return nil
 	case "Key":
-		if err := providerSvc.DeleteSSHKey(resourceName, skipTimeCheck); err != nil {
-			return fmt.Errorf("failed to delete key: %w", err)
+		if status := providerSvc.DeleteSSHKey(resourceName, skipTimeCheck); status.Error != nil {
+			return fmt.Errorf("failed to delete key: %w", status.Error)
 		}
 		return nil
 	case "Lab":
-		if err := providerSvc.DeleteLab(resourceName, skipTimeCheck); err != nil {
-			return fmt.Errorf("failed to delete lab: %w", err)
+		if status := providerSvc.DeleteLab(resourceName, skipTimeCheck); status.Error != nil {
+			return fmt.Errorf("failed to delete lab: %w", status.Error)
 		}
 		return nil
 	default:
@@ -117,9 +112,13 @@ func askForConfirmation(resource *types.Resource) bool {
 	resourceKind := resource.Kind
 	fmt.Printf("Are you sure you want to delete %s %s? [y/N] ", resourceKind, resourceName)
 	var response string
-	_, err := fmt.Scanln(&response)
-	if err != nil {
-		return false
-	}
+	fmt.Scanf("%s", &response)
+	return response == "y" || response == "Y"
+}
+
+func askForConfirmationSimple(kind, name string) bool {
+	fmt.Printf("Are you sure you want to delete %s %s? [y/N] ", kind, name)
+	var response string
+	fmt.Scanf("%s", &response)
 	return response == "y" || response == "Y"
 }

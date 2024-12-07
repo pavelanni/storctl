@@ -48,7 +48,7 @@ func listLabs() error {
 		labAge := "N/A"
 		deleteAfter := time.Time{}
 		if len(lab.Status.Servers) > 0 {
-			serverType = lab.Status.Servers[0].Spec.Type
+			serverType = lab.Status.Servers[0].Spec.ServerType
 			deleteAfter = lab.Status.Servers[0].Status.DeleteAfter
 			if lab.Status.Servers[0].Status.Owner != "" {
 				owner = lab.Status.Servers[0].Status.Owner
@@ -74,7 +74,7 @@ func listLabs() error {
 
 func getLab(labName string) error {
 	fmt.Printf("Getting details for lab: %s\n", labName)
-	lab, err := providerSvc.GetLabFromDB(labName)
+	lab, err := providerSvc.GetLab(labName)
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,7 @@ func getLab(labName string) error {
 		for _, server := range lab.Status.Servers {
 			fmt.Printf("  Server: %s, Type: %s, Cores: %d, Memory: %.2fGB, Disk: %dGB, DeleteAfter: %s\n",
 				server.ObjectMeta.Name,
-				server.Spec.Type,
+				server.Spec.ServerType,
 				server.Status.Cores,
 				server.Status.Memory,
 				server.Status.Disk,

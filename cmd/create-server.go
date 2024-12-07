@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/pavelanni/labshop/internal/config"
-	"github.com/pavelanni/labshop/internal/logger"
 	"github.com/pavelanni/labshop/internal/provider/options"
 	"github.com/pavelanni/labshop/internal/types"
 	"github.com/pavelanni/labshop/internal/util/labelutil"
@@ -38,7 +37,7 @@ func NewCreateServerCmd() *cobra.Command {
 					Labels: labels,
 				},
 				Spec: types.ServerSpec{
-					Type:        serverType,
+					ServerType:  serverType,
 					Image:       image,
 					Location:    location,
 					Provider:    cfg.Provider.Name,
@@ -49,15 +48,15 @@ func NewCreateServerCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			logger.Info("Server created successfully", "server", result.ObjectMeta.Name)
+			fmt.Printf("Server created successfully: %s\n", result.ObjectMeta.Name)
 			return nil
 		},
 	}
 
 	cmd.Flags().StringSliceVar(&sshKeyNames, "ssh-keys", []string{}, "SSH key names to use (required)")
-	cmd.Flags().StringVar(&serverType, "type", "cx22", "Server type")
-	cmd.Flags().StringVar(&image, "image", "ubuntu-24.04", "Server image")
-	cmd.Flags().StringVar(&location, "location", "fsn1", "Server location")
+	cmd.Flags().StringVar(&serverType, "type", config.DefaultServerType, "Server type")
+	cmd.Flags().StringVar(&image, "image", config.DefaultImage, "Server image")
+	cmd.Flags().StringVar(&location, "location", config.DefaultLocation, "Server location")
 	cmd.Flags().StringVar(&ttl, "ttl", config.DefaultTTL, "Server TTL")
 	cmd.Flags().StringToStringVar(&labels, "labels", map[string]string{}, "Server labels")
 	if err := cmd.MarkFlagRequired("ssh-keys"); err != nil {
@@ -71,11 +70,16 @@ func createServer(server *types.Server) (*types.Server, error) {
 	// Access fields using map syntax
 	fmt.Printf("Creating server %s with type %s, image %s, location %s, ssh keys %v\n",
 		server.ObjectMeta.Name,
-		server.Spec.Type,
+		server.Spec.ServerType,
 		server.Spec.Image,
 		server.Spec.Location,
 		server.Spec.SSHKeyNames)
 
+	if len(server.Spec.SSHKeyNames) == 0 {
+		serverKeyName := server.ObjectMeta.Name + "-admin"
+		fmt.Printf("No SSH keys provided, using default: %s\n", serverKeyName)
+		server.Spec.SSHKeyNames = []string{serverKeyName}
+	}
 	ttl := config.DefaultTTL
 	if server.Spec.TTL != "" {
 		ttl = server.Spec.TTL
@@ -91,9 +95,8 @@ func createServer(server *types.Server) (*types.Server, error) {
 		if err != nil {
 			return nil, err
 		}
-		if !keyExists { // Key not found, create it
-			logger.Info("SSH key not found, creating",
-				"key", sshKeyName)
+		if !keyExists {
+			fmt.Printf("Creating new SSH key: %s\n", sshKeyName)
 			newKey, err := createKey(&types.SSHKey{
 				TypeMeta: types.TypeMeta{
 					Kind: "SSHKey",
@@ -117,10 +120,9 @@ func createServer(server *types.Server) (*types.Server, error) {
 	}
 
 	cloudInitUserData := fmt.Sprintf(config.DefaultCloudInitUserData, sshKeys[0].Spec.PublicKey)
-	logger.Debug("cloud-init user data", "data", cloudInitUserData)
 	result, err := providerSvc.CreateServer(options.ServerCreateOpts{
 		Name:     server.ObjectMeta.Name,
-		Type:     server.Spec.Type,
+		Type:     server.Spec.ServerType,
 		Image:    server.Spec.Image,
 		Location: server.Spec.Location,
 		Provider: server.Spec.Provider,

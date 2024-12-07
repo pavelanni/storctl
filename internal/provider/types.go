@@ -11,21 +11,21 @@ type CloudProvider interface {
 	GetServer(name string) (*types.Server, error)
 	ListServers(opts options.ServerListOpts) ([]*types.Server, error)
 	AllServers() ([]*types.Server, error)
-	DeleteServer(name string, force bool) error
+	DeleteServer(name string, force bool) *types.ServerDeleteStatus
 
 	// Volume operations
 	CreateVolume(opts options.VolumeCreateOpts) (*types.Volume, error)
 	GetVolume(name string) (*types.Volume, error)
 	ListVolumes(opts options.VolumeListOpts) ([]*types.Volume, error)
 	AllVolumes() ([]*types.Volume, error)
-	DeleteVolume(name string, force bool) error
+	DeleteVolume(name string, force bool) *types.VolumeDeleteStatus
 
 	// Lab operations
 	CreateLab(name string, template string) error
 	GetLab(name string) (*types.Lab, error)
-	GetLabFromDB(name string) (*types.Lab, error)
+	GetLabFromCloud(name string) (*types.Lab, error)
 	ListLabs(opts options.LabListOpts) ([]*types.Lab, error)
-	DeleteLab(name string, force bool) error
+	DeleteLab(name string, force bool) *types.LabDeleteStatus
 	SyncLabs() error
 
 	// SSH Key operations
@@ -33,6 +33,6 @@ type CloudProvider interface {
 	GetSSHKey(name string) (*types.SSHKey, error)
 	ListSSHKeys(opts options.SSHKeyListOpts) ([]*types.SSHKey, error)
 	AllSSHKeys() ([]*types.SSHKey, error)
-	DeleteSSHKey(name string, force bool) error
+	DeleteSSHKey(name string, force bool) *types.SSHKeyDeleteStatus
 	KeyExists(name string) (bool, error)
 }

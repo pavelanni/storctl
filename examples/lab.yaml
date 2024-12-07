@@ -10,10 +10,13 @@ spec:
   location: nbg1
   servers:
   - name: cp
-    type: cx22
+    serverType: cx22
     image: ubuntu-24.04
   - name: node-01
-    type: cx22
+    serverType: cx22
+    image: ubuntu-24.04
+  - name: node-02
+    serverType: cx22
     image: ubuntu-24.04
   volumes:
   - name: volume-01
@@ -33,6 +36,26 @@ spec:
     format: xfs
   - name: volume-04
     server: node-01
+    size: 100
+    automount: false
+    format: xfs
+  - name: volume-05
+    server: node-02
+    size: 100
+    automount: false
+    format: xfs
+  - name: volume-06
+    server: node-02
+    size: 100
+    automount: false
+    format: xfs
+  - name: volume-07
+    server: node-02
+    size: 100
+    automount: false
+    format: xfs
+  - name: volume-08
+    server: node-02
     size: 100
     automount: false
     format: xfs
