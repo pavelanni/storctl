@@ -28,3 +28,5 @@ go.work.sum
 /config/*
 !/config/*.example.yaml
 *.db
+
+dist/
