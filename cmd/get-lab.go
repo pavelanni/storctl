@@ -6,9 +6,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/pavelanni/labshop/internal/provider/options"
-	"github.com/pavelanni/labshop/internal/util/output"
-	"github.com/pavelanni/labshop/internal/util/timeutil"
+	"github.com/pavelanni/storctl/internal/provider/options"
+	"github.com/pavelanni/storctl/internal/util/output"
+	"github.com/pavelanni/storctl/internal/util/timeutil"
 	"github.com/spf13/cobra"
 )
 

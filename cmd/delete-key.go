@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/pavelanni/labshop/internal/config"
+	"github.com/pavelanni/storctl/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -36,14 +36,14 @@ func NewDeleteSSHKeyCmd() *cobra.Command {
 			}
 			privateKeyPath := filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, config.KeysDir, keyName)
 			publicKeyPath := privateKeyPath + ".pub"
-			// Delete the key from the ~/.labshop/keys directory
+			// Delete the key from the keys directory
 			// check if the file exists
 			if _, err := os.Stat(privateKeyPath); err == nil {
 				if err := os.Remove(privateKeyPath); err != nil {
 					return fmt.Errorf("failed to delete private key from the keys directory: %w", err)
 				}
 			}
-			// Delete the public key from the ~/.labshop/keys directory
+			// Delete the public key from the keys directory
 			if _, err := os.Stat(publicKeyPath); err == nil {
 				if err := os.Remove(publicKeyPath); err != nil {
 					return fmt.Errorf("failed to delete public key from the keys directory: %w", err)

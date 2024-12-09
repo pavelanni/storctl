@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pavelanni/labshop/internal/config"
-	"github.com/pavelanni/labshop/internal/types"
+	"github.com/pavelanni/storctl/internal/config"
+	"github.com/pavelanni/storctl/internal/types"
 )
 
 func TestNewServerChecker(t *testing.T) {

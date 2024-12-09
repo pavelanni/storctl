@@ -5,8 +5,8 @@ import (
 	"log/slog"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
-	"github.com/pavelanni/labshop/internal/config"
-	"github.com/pavelanni/labshop/internal/logger"
+	"github.com/pavelanni/storctl/internal/config"
+	"github.com/pavelanni/storctl/internal/logger"
 	"go.etcd.io/bbolt"
 )
 

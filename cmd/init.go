@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/pavelanni/labshop/internal/config"
+	"github.com/pavelanni/storctl/internal/config"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -13,7 +13,7 @@ import (
 func NewInitCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
-		Short: "Initialize labshop",
+		Short: fmt.Sprintf("Initialize %s", config.ToolName),
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := createConfig(); err != nil {

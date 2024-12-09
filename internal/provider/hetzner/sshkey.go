@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
-	"github.com/pavelanni/labshop/internal/provider/options"
-	"github.com/pavelanni/labshop/internal/types"
-	"github.com/pavelanni/labshop/internal/util/timeutil"
+	"github.com/pavelanni/storctl/internal/provider/options"
+	"github.com/pavelanni/storctl/internal/types"
+	"github.com/pavelanni/storctl/internal/util/timeutil"
 )
 
 func (p *HetznerProvider) CreateSSHKey(opts options.SSHKeyCreateOpts) (*types.SSHKey, error) {

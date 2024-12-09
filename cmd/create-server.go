@@ -3,11 +3,11 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/pavelanni/labshop/internal/config"
-	"github.com/pavelanni/labshop/internal/provider/options"
-	"github.com/pavelanni/labshop/internal/types"
-	"github.com/pavelanni/labshop/internal/util/labelutil"
-	"github.com/pavelanni/labshop/internal/util/timeutil"
+	"github.com/pavelanni/storctl/internal/config"
+	"github.com/pavelanni/storctl/internal/provider/options"
+	"github.com/pavelanni/storctl/internal/types"
+	"github.com/pavelanni/storctl/internal/util/labelutil"
+	"github.com/pavelanni/storctl/internal/util/timeutil"
 	"github.com/spf13/cobra"
 )
 

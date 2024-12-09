@@ -1,8 +1,8 @@
 package provider
 
 import (
-	"github.com/pavelanni/labshop/internal/provider/options"
-	"github.com/pavelanni/labshop/internal/types"
+	"github.com/pavelanni/storctl/internal/provider/options"
+	"github.com/pavelanni/storctl/internal/types"
 )
 
 type CloudProvider interface {

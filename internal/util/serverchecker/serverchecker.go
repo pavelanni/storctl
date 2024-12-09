@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pavelanni/labshop/internal/config"
-	"github.com/pavelanni/labshop/internal/logger"
-	"github.com/pavelanni/labshop/internal/types"
+	"github.com/pavelanni/storctl/internal/config"
+	"github.com/pavelanni/storctl/internal/logger"
+	"github.com/pavelanni/storctl/internal/types"
 	"golang.org/x/crypto/ssh"
 )
 

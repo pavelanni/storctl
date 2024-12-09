@@ -1,6 +1,6 @@
 package options
 
-import "github.com/pavelanni/labshop/internal/types"
+import "github.com/pavelanni/storctl/internal/types"
 
 type ServerCreateOpts struct {
 	Name     string

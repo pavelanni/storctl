@@ -4,15 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/pavelanni/labshop/internal/config"
+	"github.com/pavelanni/storctl/internal/config"
 	"github.com/spf13/cobra"
 )
 
 func NewConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
-		Short: "Manage labshop configuration",
-		Long:  `View and modify labshop configuration settings`,
+		Short: fmt.Sprintf("Manage %s configuration", config.ToolName),
+		Long:  fmt.Sprintf("View and modify %s configuration settings", config.ToolName),
 	}
 
 	cmd.AddCommand(

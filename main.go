@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/pavelanni/labshop/cmd"
+	"github.com/pavelanni/storctl/cmd"
 )
 
 func main() {

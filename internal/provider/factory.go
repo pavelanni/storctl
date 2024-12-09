@@ -3,8 +3,8 @@ package provider
 import (
 	"fmt"
 
-	"github.com/pavelanni/labshop/internal/config"
-	"github.com/pavelanni/labshop/internal/provider/hetzner"
+	"github.com/pavelanni/storctl/internal/config"
+	"github.com/pavelanni/storctl/internal/provider/hetzner"
 )
 
 // NewProvider creates a new cloud provider based on the configuration

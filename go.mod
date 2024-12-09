@@ -1,4 +1,4 @@
-module github.com/pavelanni/labshop
+module github.com/pavelanni/storctl
 
 go 1.23.3
 

@@ -14,10 +14,10 @@ const (
 
 const (
 	// ToolName is the name of the tool, used for directory names and logging
-	ToolName = "labshop"
+	ToolName = "storctl"
 
 	// DefaultConfigDir is the default directory for all tool-related files
-	DefaultConfigDir = ".labshop"
+	DefaultConfigDir = ".storctl"
 
 	// DefaultTemplateDir is the default directory for lab templates
 	DefaultTemplateDir = "templates"

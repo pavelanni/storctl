@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/pavelanni/labshop/internal/types"
+	"github.com/pavelanni/storctl/internal/types"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/util/yaml"
 )

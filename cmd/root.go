@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
-	"github.com/pavelanni/labshop/internal/config"
-	"github.com/pavelanni/labshop/internal/dns"
-	"github.com/pavelanni/labshop/internal/provider"
+	"github.com/pavelanni/storctl/internal/config"
+	"github.com/pavelanni/storctl/internal/dns"
+	"github.com/pavelanni/storctl/internal/provider"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -22,8 +23,8 @@ var (
 
 func NewRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "labshop",
-		Short: "Labshop - Lab Environment Manager",
+		Use:   config.ToolName,
+		Short: fmt.Sprintf("%s - AIStor Environment Manager", config.ToolName),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// Initialize everything before running any command execpt init
 			if cmd.Name() == "init" {
@@ -69,7 +70,7 @@ func initConfig() {
 			os.Exit(1)
 		}
 
-		configDir := filepath.Join(home, ".labshop")
+		configDir := filepath.Join(home, config.DefaultConfigDir)
 		if err := os.MkdirAll(configDir, 0755); err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating config directory: %v\n", err)
 			os.Exit(1)
@@ -81,7 +82,7 @@ func initConfig() {
 	}
 
 	viper.AutomaticEnv()
-	viper.SetEnvPrefix("LABSHOP")
+	viper.SetEnvPrefix(strings.ToUpper(config.ToolName))
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
