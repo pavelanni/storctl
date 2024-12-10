@@ -1,28 +1,28 @@
 package serverchecker
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"log/slog"
+
 	"github.com/pavelanni/storctl/internal/config"
 	"github.com/pavelanni/storctl/internal/logger"
 	"github.com/pavelanni/storctl/internal/types"
-	"golang.org/x/crypto/ssh"
 )
 
 type ServerChecker struct {
-	host     string
-	config   *ssh.ClientConfig
-	timeout  time.Duration
-	attempts int
-	logger   *slog.Logger
+	client         SSHClient
+	host           string
+	attempts       int
+	timeout        time.Duration
+	logger         *slog.Logger
+	tickerDuration time.Duration
 }
 
 type ServerResult struct {
@@ -31,33 +31,26 @@ type ServerResult struct {
 	Error  error
 }
 
-func NewServerChecker(host, user, keyPath, logLevel string, timeout time.Duration, attempts int) (*ServerChecker, error) {
-	key, err := os.ReadFile(keyPath)
-	if err != nil {
-		return nil, fmt.Errorf("reading SSH key %s: %w", keyPath, err)
-	}
-
-	signer, err := ssh.ParsePrivateKey(key)
-	if err != nil {
-		return nil, fmt.Errorf("parsing SSH key: %w", err)
-	}
-
-	config := &ssh.ClientConfig{
-		User: user,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(signer),
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         10 * time.Second,
-	}
-
+func NewServerChecker(host string, user string, keyPath string, logLevel string, timeout time.Duration, attempts int) (*ServerChecker, error) {
 	level := logger.ParseLevel(logLevel)
 	serverCheckerLogger := logger.NewLogger(level)
+	// check if key exists
+	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("key file does not exist: %s", keyPath)
+	}
+
+	// Create real SSH client here
+	client := &RealSSHClient{
+		host:    host,
+		user:    user,
+		keyPath: keyPath,
+	}
+
 	return &ServerChecker{
+		client:   client,
 		host:     host,
-		config:   config,
-		timeout:  timeout,
 		attempts: attempts,
+		timeout:  timeout,
 		logger:   serverCheckerLogger,
 	}, nil
 }
@@ -75,9 +68,14 @@ func CheckServers(servers []*types.Server, logLevel string, timeout time.Duratio
 			config.DefaultConfigDir,
 			config.KeysDir,
 			strings.Join([]string{server.ObjectMeta.Labels["lab_name"], "admin"}, "-"))
+		if serverIP == "" {
+			results[i] = ServerResult{Server: server, Error: fmt.Errorf("server IP is empty")}
+			continue
+		}
+
 		go func(i int, server *types.Server) {
 			defer wg.Done()
-			sc, err := NewServerChecker(serverIP+":22", config.DefaultAdminUser, serverPrivateKeyPath, logLevel, 30*time.Minute, 20)
+			sc, err := NewServerChecker(serverIP+":22", config.DefaultAdminUser, serverPrivateKeyPath, logLevel, timeout, attempts)
 			if err != nil {
 				results[i] = ServerResult{Server: server, Error: err}
 				return
@@ -91,26 +89,20 @@ func CheckServers(servers []*types.Server, logLevel string, timeout time.Duratio
 		}(i, server)
 	}
 	wg.Wait()
+	for _, result := range results {
+		if result.Error != nil {
+			return results, result.Error
+		}
+	}
 	return results, nil
 }
 
-func (sc *ServerChecker) execCommand(client *ssh.Client, cmd string) (string, error) {
-	session, err := client.NewSession()
-	if err != nil {
-		return "", err
-	}
-	defer session.Close()
-
-	var output bytes.Buffer
-	session.Stdout = &output
-	if err := session.Run(cmd); err != nil {
-		return output.String(), err
-	}
-	return output.String(), nil
-}
-
 func (sc *ServerChecker) checkServerReady(ctx context.Context) error {
-	ticker := time.NewTicker(30 * time.Second)
+	tickerDuration := 30 * time.Second
+	if sc.tickerDuration > 0 {
+		tickerDuration = sc.tickerDuration
+	}
+	ticker := time.NewTicker(tickerDuration)
 	defer ticker.Stop()
 
 	timeout := time.After(sc.timeout)
@@ -148,7 +140,7 @@ func (sc *ServerChecker) checkServerReady(ctx context.Context) error {
 				return fmt.Errorf("max attempts (%d) reached", sc.attempts)
 			}
 
-			client, err := ssh.Dial("tcp", sc.host, sc.config)
+			err := sc.client.Connect()
 			if err != nil {
 				sc.logger.Debug("SSH connection failed",
 					"host", sc.host,
@@ -157,10 +149,10 @@ func (sc *ServerChecker) checkServerReady(ctx context.Context) error {
 					"timeElapsed", time.Since(time.Now()))
 				continue
 			}
-			defer client.Close()
+			defer sc.client.Close()
 
 			// Check cloud-init status
-			cloudInitStatus, err := sc.execCommand(client, "cloud-init status --wait")
+			cloudInitStatus, err := sc.client.ExecCommand("cloud-init status --wait")
 			if err != nil {
 				sc.logger.Debug("Cloud-init check failed", "host", sc.host, "attempt", attempt, "error", err)
 				continue
@@ -171,7 +163,7 @@ func (sc *ServerChecker) checkServerReady(ctx context.Context) error {
 			}
 
 			// Check boot time
-			uptime, err := sc.execCommand(client, "uptime -s")
+			uptime, err := sc.client.ExecCommand("TZ=UTC uptime -s")
 			if err != nil {
 				sc.logger.Debug("Uptime check failed", "host", sc.host, "attempt", attempt, "error", err)
 				continue
@@ -183,13 +175,14 @@ func (sc *ServerChecker) checkServerReady(ctx context.Context) error {
 				continue
 			}
 
+			sc.logger.Debug("Boot time", "host", sc.host, "attempt", attempt, "bootTime", bootTime)
 			if time.Since(bootTime) > 5*time.Minute {
-				sc.logger.Debug("Server boot time too old", "host", sc.host, "attempt", attempt)
+				sc.logger.Debug("Server boot time too old", "host", sc.host, "attempt", attempt, "timeSinceBoot", time.Since(bootTime))
 				continue
 			}
 
 			// Check for pending updates
-			rebootRequired, err := sc.execCommand(client, "[ -f /var/run/reboot-required ] && echo 'yes' || echo 'no'")
+			rebootRequired, err := sc.client.ExecCommand("[ -f /var/run/reboot-required ] && echo 'yes' || echo 'no'")
 			if err != nil {
 				sc.logger.Debug("Reboot check failed", "host", sc.host, "attempt", attempt, "error", err)
 				continue
@@ -200,7 +193,7 @@ func (sc *ServerChecker) checkServerReady(ctx context.Context) error {
 			}
 
 			// Check package status
-			pkgStatus, err := sc.execCommand(client, "apt-get -s upgrade | grep -q '^0 upgraded' && echo 'ok' || echo 'pending'")
+			pkgStatus, err := sc.client.ExecCommand("apt-get -s upgrade | grep -q '^0 upgraded' && echo 'ok' || echo 'pending'")
 			if err != nil {
 				sc.logger.Debug("Package status check failed", "host", sc.host, "attempt", attempt, "error", err)
 				continue
@@ -214,4 +207,44 @@ func (sc *ServerChecker) checkServerReady(ctx context.Context) error {
 			return nil
 		}
 	}
+}
+
+// CheckWithContext verifies if the server is ready using the provided context
+// Returns true if the server is ready, false otherwise
+// If an error occurs during checking, it returns false and the error
+func (sc *ServerChecker) CheckWithContext(ctx context.Context) (bool, error) {
+	// Ensure at least one attempt
+	err := sc.checkServerReady(ctx)
+	if err == nil {
+		return true, nil
+	}
+
+	// Continue with remaining attempts if time permits
+	attempts := 1
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for attempts < sc.attempts {
+		select {
+		case <-ctx.Done():
+			return false, fmt.Errorf("timeout waiting for server to be ready after %d attempts", attempts)
+		case <-ticker.C:
+			err := sc.checkServerReady(ctx)
+			if err == nil {
+				return true, nil
+			}
+			attempts++
+			sc.logger.Debug("Server not ready yet", "host", sc.host, "attempt", attempts)
+		}
+	}
+
+	return false, fmt.Errorf("server not ready after %d attempts", attempts)
+}
+
+// Check verifies if the server is ready
+// This is now a wrapper around CheckWithContext using the server's timeout
+func (sc *ServerChecker) Check() (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), sc.timeout)
+	defer cancel()
+	return sc.CheckWithContext(ctx)
 }

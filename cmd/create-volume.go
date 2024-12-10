@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/pavelanni/storctl/internal/config"
 	"github.com/pavelanni/storctl/internal/provider/options"
@@ -77,10 +78,14 @@ func createVolume(volume *types.Volume) error {
 	if ttl == "" {
 		ttl = config.DefaultTTL
 	}
-	labels["delete_after"] = timeutil.FormatDeleteAfter(timeutil.TtlToDeleteAfter(ttl))
+	duration, err := timeutil.TtlToDuration(ttl)
+	if err != nil {
+		return fmt.Errorf("failed to parse ttl: %w", err)
+	}
+	labels["delete_after"] = timeutil.FormatDeleteAfter(time.Now().Add(duration))
 	labels["owner"] = labelutil.SanitizeValue(cfg.Owner)
 
-	_, err := providerSvc.CreateVolume(options.VolumeCreateOpts{
+	_, err = providerSvc.CreateVolume(options.VolumeCreateOpts{
 		Name:       volume.ObjectMeta.Name,
 		Size:       volume.Spec.Size,
 		ServerName: volume.Spec.ServerName,

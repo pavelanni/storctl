@@ -62,7 +62,11 @@ func createLab(lab *types.Lab) (*types.Lab, error) {
 	if ttl == "" {
 		ttl = config.DefaultTTL
 	}
-	lab.ObjectMeta.Labels["delete_after"] = timeutil.FormatDeleteAfter(timeutil.TtlToDeleteAfter(ttl))
+	duration, err := timeutil.TtlToDuration(ttl)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse ttl: %w", err)
+	}
+	lab.ObjectMeta.Labels["delete_after"] = timeutil.FormatDeleteAfter(time.Now().Add(duration))
 
 	keyNames := []string{strings.Join([]string{lab.ObjectMeta.Name, "admin"}, "-")}
 	// Create servers

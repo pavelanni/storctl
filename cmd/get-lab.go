@@ -80,9 +80,9 @@ func getLab(labName string) error {
 	}
 	switch cfg.OutputFormat {
 	case "json":
-		return output.JSON(lab)
+		return output.JSON(lab, os.Stdout)
 	case "yaml":
-		return output.YAML(lab)
+		return output.YAML(lab, os.Stdout)
 	default:
 		fmt.Printf("Lab: %s\n", lab.Name)
 		for _, server := range lab.Status.Servers {

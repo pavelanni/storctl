@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/pavelanni/storctl/internal/config"
 	"github.com/pavelanni/storctl/internal/provider/options"
@@ -86,7 +87,11 @@ func createServer(server *types.Server) (*types.Server, error) {
 	}
 
 	labels := server.ObjectMeta.Labels
-	labels["delete_after"] = timeutil.FormatDeleteAfter(timeutil.TtlToDeleteAfter(ttl))
+	duration, err := timeutil.TtlToDuration(ttl)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse ttl: %w", err)
+	}
+	labels["delete_after"] = timeutil.FormatDeleteAfter(time.Now().Add(duration))
 	labels["owner"] = labelutil.SanitizeValue(cfg.Owner)
 
 	sshKeys := make([]*types.SSHKey, 0)

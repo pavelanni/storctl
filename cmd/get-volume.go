@@ -60,9 +60,9 @@ func getVolume(volumeID string) error {
 
 	switch cfg.OutputFormat {
 	case "json":
-		return output.JSON(volume)
+		return output.JSON(volume, os.Stdout)
 	case "yaml":
-		return output.YAML(volume)
+		return output.YAML(volume, os.Stdout)
 	default:
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(w, "NAME\tSERVER\tSIZE\tOWNER\tAGE\tDELETE AFTER")

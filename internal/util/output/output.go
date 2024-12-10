@@ -2,43 +2,31 @@ package output
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 
 	"gopkg.in/yaml.v3"
 )
 
-func JSON(v interface{}) error {
-	encoder := json.NewEncoder(os.Stdout)
+// JSON formats data as JSON and writes it to the specified writer
+func JSON(data interface{}, w io.Writer) error {
+	if w == nil {
+		w = os.Stdout
+	}
+
+	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(v)
+	return encoder.Encode(data)
 }
 
-func YAML(v interface{}) error {
-	// Convert the input to JSON bytes first (easy way to get a map)
-	jsonBytes, err := json.Marshal(v)
-	if err != nil {
-		return err
+// YAML formats data as YAML and writes it to the specified writer
+func YAML(data interface{}, w io.Writer) error {
+	if w == nil {
+		w = os.Stdout
 	}
 
-	// Create a map to hold the flattened structure
-	var data map[string]interface{}
-	if err := json.Unmarshal(jsonBytes, &data); err != nil {
-		return err
-	}
-
-	// Extract and flatten typemeta and objectmeta
-	if typeMeta, ok := data["typemeta"].(map[string]interface{}); ok {
-		for k, v := range typeMeta {
-			data[k] = v
-		}
-		delete(data, "typemeta")
-	}
-	if objectMeta, ok := data["objectmeta"].(map[string]interface{}); ok {
-		for k, v := range objectMeta {
-			data[k] = v
-		}
-		delete(data, "objectmeta")
-	}
-
-	return yaml.NewEncoder(os.Stdout).Encode(data)
+	encoder := yaml.NewEncoder(w)
+	encoder.SetIndent(2)
+	defer encoder.Close()
+	return encoder.Encode(data)
 }

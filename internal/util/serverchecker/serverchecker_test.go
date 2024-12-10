@@ -2,6 +2,9 @@ package serverchecker
 
 import (
 	"context"
+	"errors"
+	"log/slog"
+	"os"
 	"testing"
 	"time"
 
@@ -30,61 +33,60 @@ func TestNewServerChecker(t *testing.T) {
 func TestCheckServers(t *testing.T) {
 	t.Parallel()
 
-	// Create test servers with real IPs
+	// Create test servers with mock IPs
 	servers := []*types.Server{
 		{
 			ObjectMeta: types.ObjectMeta{
-				Name:   "my-lab-cp",
-				Labels: map[string]string{"labname": "my-lab"},
+				Name:   "test-cp",
+				Labels: map[string]string{"lab_name": "test"},
 			},
 			Status: types.ServerStatus{
 				PublicNet: &types.PublicNet{
 					IPv4: &struct {
 						IP string `json:"ip"`
 					}{
-						IP: "188.245.99.174",
+						IP: "192.0.2.1", // Use TEST-NET-1 range (RFC 5737)
 					},
 				},
 			},
 		},
 		{
 			ObjectMeta: types.ObjectMeta{
-				Name:   "my-lab-node-01",
-				Labels: map[string]string{"labname": "my-lab"},
+				Name:   "test-node-01",
+				Labels: map[string]string{"lab_name": "test"},
 			},
 			Status: types.ServerStatus{
 				PublicNet: &types.PublicNet{
 					IPv4: &struct {
 						IP string `json:"ip"`
 					}{
-						IP: "78.46.138.190",
+						IP: "192.0.2.2", // Use TEST-NET-1 range (RFC 5737)
 					},
 				},
 			},
 		},
 	}
 
-	// Run the check
-	results, err := CheckServers(servers, "debug", 2*time.Minute, 20)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
+	// Use shorter timeout for tests
+	results, err := CheckServers(servers, "debug", 100*time.Millisecond, 2)
+	t.Logf("results: %+v, err: %+v", results, err)
+
+	// Expect error because these are not real servers
+	if err == nil {
+		t.Error("Expected error for unreachable servers, got nil")
 	}
 
 	if len(results) != len(servers) {
 		t.Errorf("Expected %d results, got %d", len(servers), len(results))
 	}
 
-	// Check each result
-	for i, result := range results {
-		t.Logf("Checking server %s (%s)", result.Server.ObjectMeta.Name, result.Server.Status.PublicNet.IPv4.IP)
-		if result.Server != servers[i] {
-			t.Errorf("Server mismatch for %s", result.Server.ObjectMeta.Name)
+	// Check that results contain expected errors
+	for _, result := range results {
+		if result.Ready {
+			t.Errorf("Server %s should not be ready", result.Server.ObjectMeta.Name)
 		}
-		if result.Error != nil {
-			t.Errorf("Server %s check failed: %v", result.Server.ObjectMeta.Name, result.Error)
-		}
-		if !result.Ready {
-			t.Errorf("Server %s is not ready", result.Server.ObjectMeta.Name)
+		if result.Error == nil {
+			t.Errorf("Expected error for server %s", result.Server.ObjectMeta.Name)
 		}
 	}
 }
@@ -129,5 +131,120 @@ func TestServerChecker_checkServerReady(t *testing.T) {
 		}
 	case <-time.After(6 * time.Second):
 		t.Error("Test took too long to complete")
+	}
+}
+
+func TestServerChecker(t *testing.T) {
+	tests := []struct {
+		name          string
+		mockResponses map[string]struct {
+			output string
+			err    error
+		}
+		expectReady bool
+		expectErr   bool
+	}{
+		{
+			name: "server ready",
+			mockResponses: map[string]struct {
+				output string
+				err    error
+			}{
+				"cloud-init status --wait": {
+					output: "status: done",
+					err:    nil,
+				},
+				"TZ=UTC uptime -s": {
+					output: time.Now().UTC().Format("2006-01-02 15:04:05"),
+					err:    nil,
+				},
+				"[ -f /var/run/reboot-required ] && echo 'yes' || echo 'no'": {
+					output: "no",
+					err:    nil,
+				},
+				"apt-get -s upgrade | grep -q '^0 upgraded' && echo 'ok' || echo 'pending'": {
+					output: "ok",
+					err:    nil,
+				},
+			},
+			expectReady: true,
+			expectErr:   false,
+		},
+		{
+			name: "cloud-init not done",
+			mockResponses: map[string]struct {
+				output string
+				err    error
+			}{
+				"cloud-init status --wait": {
+					output: "status: running",
+					err:    nil,
+				},
+			},
+			expectReady: false,
+			expectErr:   true,
+		},
+		{
+			name: "ssh connection failed",
+			mockResponses: map[string]struct {
+				output string
+				err    error
+			}{
+				"": {
+					output: "",
+					err:    errors.New("connection refused"),
+				},
+			},
+			expectReady: false,
+			expectErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &MockSSHClient{
+				ConnectFunc: func() error {
+					if resp, ok := tt.mockResponses[""]; ok {
+						return resp.err
+					}
+					return nil
+				},
+				ExecCommandFunc: func(cmd string) (string, error) {
+					if resp, ok := tt.mockResponses[cmd]; ok {
+						t.Helper()
+						t.Log("Command:", cmd)
+						t.Log("Output:", resp.output)
+						t.Log("Error:", resp.err)
+						return resp.output, resp.err
+					}
+					return "", errors.New("unexpected command")
+				},
+			}
+
+			// Create logger with debug level
+			testLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+				Level: slog.LevelDebug,
+			}))
+
+			checker := &ServerChecker{
+				client:         mock,
+				host:           "test-host:22",
+				attempts:       1,
+				timeout:        2000 * time.Millisecond,
+				logger:         testLogger,
+				tickerDuration: 500 * time.Millisecond,
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 2000*time.Millisecond)
+			defer cancel()
+
+			ready, err := checker.CheckWithContext(ctx)
+			if (err != nil) != tt.expectErr {
+				t.Errorf("Check() error = %v, expectErr %v", err, tt.expectErr)
+			}
+			if ready != tt.expectReady {
+				t.Errorf("Check() ready = %v, want %v", ready, tt.expectReady)
+			}
+		})
 	}
 }

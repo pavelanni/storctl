@@ -45,12 +45,17 @@ func FormatAge(t time.Time) string {
 	return fmt.Sprintf("%ds", seconds)
 }
 
-func TtlToDeleteAfter(ttl string) time.Time {
+func TtlToDuration(ttl string) (time.Duration, error) {
+	if ttl == "" {
+		return 0, fmt.Errorf("ttl cannot be empty")
+	}
+
 	duration, err := time.ParseDuration(ttl)
 	if err != nil {
-		return time.Time{}
+		return 0, fmt.Errorf("invalid ttl format: %w", err)
 	}
-	return time.Now().Add(duration)
+
+	return duration, nil
 }
 
 func FormatDeleteAfter(t time.Time) string {

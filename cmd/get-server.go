@@ -59,9 +59,9 @@ func getServer(serverID string) error {
 
 	switch cfg.OutputFormat {
 	case "json":
-		return output.JSON(server)
+		return output.JSON(server, os.Stdout)
 	case "yaml":
-		return output.YAML(server)
+		return output.YAML(server, os.Stdout)
 	default:
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(w, "NAME\tTYPE\tOWNER\tAGE\tDELETE AFTER")
