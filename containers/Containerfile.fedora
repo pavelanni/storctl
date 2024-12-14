@@ -1,0 +1,67 @@
+# Start with Fedora base image
+FROM registry.fedoraproject.org/fedora:41-x86_64
+
+# Set labels for better container management
+LABEL maintainer="Pavel Anni <pavel@min.io>"
+LABEL description="AIStor CLI with storctl, Ansible, and Hetzner Cloud CLI"
+
+# Install basic tools and dependencies
+RUN dnf update -y \
+    && dnf install -y dnf-plugins-core \
+    && dnf upgrade -y fedora-gpg-keys \
+    && dnf install -y \
+    librepo \
+    libxcrypt-compat \
+    git \
+    curl \
+    wget \
+    unzip \
+    python3 \
+    python3-pip \
+    jq \
+    vim \
+    which \
+    tar \
+    openssl \
+    && dnf clean all
+
+# Install kubectl
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
+    chmod +x kubectl && \
+    mv kubectl /usr/local/bin/
+
+# Install Krew
+RUN (cd /tmp && curl -fsSL https://github.com/kubernetes-sigs/krew/releases/latest/download/krew-linux_amd64.tar.gz | tar xz) && \
+    /tmp/krew-linux_amd64 install krew && \
+    echo "export PATH=\$PATH:~/.krew/bin" >> /root/.bashrc
+
+
+# Install Helm
+RUN curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# Install Ansible and Kubernetes Python library
+RUN pip3 install --no-cache-dir ansible kubernetes
+
+# Install Hetzner Cloud CLI
+RUN wget -O /tmp/hcloud.tar.gz https://github.com/hetznercloud/cli/releases/latest/download/hcloud-linux-amd64.tar.gz && \
+    tar -xzf /tmp/hcloud.tar.gz -C /tmp && \
+    mv /tmp/hcloud /usr/local/bin/ && \
+    chmod +x /usr/local/bin/hcloud && \
+    rm -f /tmp/hcloud.tar.gz
+
+# Create working directory
+WORKDIR /workspace
+
+# Set environment variables
+ENV ANSIBLE_HOST_KEY_CHECKING=False
+
+# Install DirectPV plugin for kubectl
+ENV PATH="${PATH}:/root/.krew/bin"
+RUN kubectl krew install directpv
+
+# Install storctl
+COPY ./dist/storctl_linux_amd64_v1/storctl /usr/local/bin/storctl
+RUN chmod +x /usr/local/bin/storctl
+
+# Default command
+CMD ["/bin/bash"]

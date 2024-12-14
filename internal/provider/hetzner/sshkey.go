@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
+	"github.com/pavelanni/storctl/internal/config"
 	"github.com/pavelanni/storctl/internal/provider/options"
+	"github.com/pavelanni/storctl/internal/ssh"
 	"github.com/pavelanni/storctl/internal/types"
 	"github.com/pavelanni/storctl/internal/util/timeutil"
 )
@@ -38,6 +40,9 @@ func (p *HetznerProvider) GetSSHKey(name string) (*types.SSHKey, error) {
 			"key", name)
 		return nil, fmt.Errorf("SSH key not found")
 	}
+	p.logger.Debug("SSH key found",
+		"key", name,
+		"public_key", sshKey.PublicKey)
 	return mapSSHKey(sshKey), nil
 }
 
@@ -68,14 +73,14 @@ func (p *HetznerProvider) DeleteSSHKey(name string, force bool) *types.SSHKeyDel
 		}
 	}
 
-	keyExists, err := p.KeyExists(name)
+	keyExists, err := p.CloudKeyExists(name)
 	if err != nil {
 		return &types.SSHKeyDeleteStatus{
 			Error: err,
 		}
 	}
 	if !keyExists {
-		p.logger.Debug("SSH key not found, skipping",
+		p.logger.Debug("SSH key not found on the cloud, skipping",
 			"key", name)
 		return &types.SSHKeyDeleteStatus{
 			Deleted: true,
@@ -93,7 +98,7 @@ func (p *HetznerProvider) DeleteSSHKey(name string, force bool) *types.SSHKeyDel
 
 	if !force {
 		if deleteAfterStr, ok := sshKey.Labels["delete_after"]; ok {
-			deleteAfter, err := time.Parse(time.RFC3339, deleteAfterStr)
+			deleteAfter := timeutil.ParseDeleteAfter(deleteAfterStr)
 			if err == nil && time.Now().UTC().Before(deleteAfter) {
 				p.logger.Warn("key not ready for deletion",
 					"key", name,
@@ -105,12 +110,12 @@ func (p *HetznerProvider) DeleteSSHKey(name string, force bool) *types.SSHKeyDel
 		}
 	}
 
-	p.logger.Debug("deleting SSH key",
+	p.logger.Debug("deleting cloud SSH key",
 		"key", name)
 
 	_, err = p.Client.SSHKey.Delete(context.Background(), sshKey)
 	if err != nil {
-		p.logger.Error("failed to delete SSH key",
+		p.logger.Error("failed to delete cloud SSH key",
 			"key", name)
 	}
 	return &types.SSHKeyDeleteStatus{
@@ -118,12 +123,56 @@ func (p *HetznerProvider) DeleteSSHKey(name string, force bool) *types.SSHKeyDel
 	}
 }
 
-func (p *HetznerProvider) KeyExists(name string) (bool, error) {
-	sshKey, _, err := p.Client.SSHKey.GetByName(context.Background(), name)
+func (p *HetznerProvider) CloudKeyExists(name string) (bool, error) {
+	// check if the cloud key exists
+	cloudKey, _, err := p.Client.SSHKey.GetByName(context.Background(), name)
 	if err != nil {
 		return false, fmt.Errorf("failed to check SSH key existence: %w", err)
 	}
-	return sshKey != nil, nil
+
+	return cloudKey != nil, nil
+}
+
+// KeyNamesToSSHKeys converts a list of SSH key names to a list of SSH keys
+// It will upload local SSH keys to the cloud if they don't exist
+// It adds the default admin key to the list
+func (p *HetznerProvider) KeyNamesToSSHKeys(keyNames []string, opts options.SSHKeyCreateOpts) ([]*types.SSHKey, error) {
+	sshManager := ssh.NewManager(p.config)
+	sshKeys := make([]*types.SSHKey, 0)
+	adminKey, err := p.GetSSHKey(config.DefaultAdminKeyName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get admin key: %w", err)
+	}
+	sshKeys = append(sshKeys, adminKey)
+
+	for _, keyName := range keyNames {
+		cloudKeyExists, err := p.CloudKeyExists(keyName)
+		if err != nil {
+			return nil, err
+		}
+		if !cloudKeyExists {
+			// check if the key exists locally
+			localKeyExists, err := sshManager.LocalKeyExists(keyName)
+			if err != nil {
+				return nil, err
+			}
+			if !localKeyExists {
+				fmt.Printf("SSH key %s not found locally, skipping it\n", keyName)
+				continue
+			}
+			pubKey, err := sshManager.ReadLocalPublicKey(keyName)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read local public key: %w", err)
+			}
+			opts.PublicKey = pubKey
+			newKey, err := p.CreateSSHKey(opts)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create SSH key: %w", err)
+			}
+			sshKeys = append(sshKeys, newKey)
+		}
+	}
+	return sshKeys, nil
 }
 
 func mapSSHKey(sk *hcloud.SSHKey) *types.SSHKey {

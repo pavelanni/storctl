@@ -29,4 +29,8 @@ go.work.sum
 !/config/*.example.yaml
 *.db
 
+# GoReleaser build artifacts
 dist/
+
+# Scratch space
+scratch/

@@ -12,7 +12,6 @@ import (
 	"log/slog"
 
 	"github.com/pavelanni/storctl/internal/config"
-	"github.com/pavelanni/storctl/internal/logger"
 	"github.com/pavelanni/storctl/internal/types"
 )
 
@@ -31,9 +30,7 @@ type ServerResult struct {
 	Error  error
 }
 
-func NewServerChecker(host string, user string, keyPath string, logLevel string, timeout time.Duration, attempts int) (*ServerChecker, error) {
-	level := logger.ParseLevel(logLevel)
-	serverCheckerLogger := logger.NewLogger(level)
+func NewServerChecker(host string, user string, keyPath string, logger *slog.Logger, timeout time.Duration, attempts int) (*ServerChecker, error) {
 	// check if key exists
 	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("key file does not exist: %s", keyPath)
@@ -51,11 +48,11 @@ func NewServerChecker(host string, user string, keyPath string, logLevel string,
 		host:     host,
 		attempts: attempts,
 		timeout:  timeout,
-		logger:   serverCheckerLogger,
+		logger:   logger,
 	}, nil
 }
 
-func CheckServers(servers []*types.Server, logLevel string, timeout time.Duration, attempts int) ([]ServerResult, error) {
+func CheckServers(servers []*types.Server, logger *slog.Logger, timeout time.Duration, attempts int) ([]ServerResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -66,7 +63,7 @@ func CheckServers(servers []*types.Server, logLevel string, timeout time.Duratio
 		serverIP := server.Status.PublicNet.IPv4.IP
 		serverPrivateKeyPath := filepath.Join(os.Getenv("HOME"),
 			config.DefaultConfigDir,
-			config.KeysDir,
+			config.DefaultKeysDir,
 			strings.Join([]string{server.ObjectMeta.Labels["lab_name"], "admin"}, "-"))
 		if serverIP == "" {
 			results[i] = ServerResult{Server: server, Error: fmt.Errorf("server IP is empty")}
@@ -75,7 +72,7 @@ func CheckServers(servers []*types.Server, logLevel string, timeout time.Duratio
 
 		go func(i int, server *types.Server) {
 			defer wg.Done()
-			sc, err := NewServerChecker(serverIP+":22", config.DefaultAdminUser, serverPrivateKeyPath, logLevel, timeout, attempts)
+			sc, err := NewServerChecker(serverIP+":22", config.DefaultAdminUser, serverPrivateKeyPath, logger, timeout, attempts)
 			if err != nil {
 				results[i] = ServerResult{Server: server, Error: err}
 				return

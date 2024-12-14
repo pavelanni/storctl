@@ -6,6 +6,7 @@ import (
 
 	"github.com/pavelanni/storctl/internal/config"
 	"github.com/pavelanni/storctl/internal/provider/options"
+	"github.com/pavelanni/storctl/internal/ssh"
 	"github.com/pavelanni/storctl/internal/types"
 	"github.com/pavelanni/storctl/internal/util/labelutil"
 	"github.com/pavelanni/storctl/internal/util/timeutil"
@@ -54,20 +55,24 @@ func NewCreateServerCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringSliceVar(&sshKeyNames, "ssh-keys", []string{}, "SSH key names to use (required)")
+	cmd.Flags().StringSliceVar(&sshKeyNames, "ssh-keys", []string{}, "SSH key names to use; if not provided, the admin key will be created")
 	cmd.Flags().StringVar(&serverType, "type", config.DefaultServerType, "Server type")
 	cmd.Flags().StringVar(&image, "image", config.DefaultImage, "Server image")
 	cmd.Flags().StringVar(&location, "location", config.DefaultLocation, "Server location")
 	cmd.Flags().StringVar(&ttl, "ttl", config.DefaultTTL, "Server TTL")
 	cmd.Flags().StringToStringVar(&labels, "labels", map[string]string{}, "Server labels")
-	if err := cmd.MarkFlagRequired("ssh-keys"); err != nil {
-		panic(err)
-	}
 
 	return cmd
 }
 
 func createServer(server *types.Server) (*types.Server, error) {
+	sshManager := ssh.NewManager(cfg)
+	// no ssh keys provided, use the admin key
+	if len(server.Spec.SSHKeyNames) == 0 {
+		serverKeyName := server.ObjectMeta.Name + "-admin"
+		fmt.Printf("No SSH keys provided, using default: %s\n", serverKeyName)
+		server.Spec.SSHKeyNames = []string{serverKeyName}
+	}
 	// Access fields using map syntax
 	fmt.Printf("Creating server %s with type %s, image %s, location %s, ssh keys %v\n",
 		server.ObjectMeta.Name,
@@ -76,11 +81,6 @@ func createServer(server *types.Server) (*types.Server, error) {
 		server.Spec.Location,
 		server.Spec.SSHKeyNames)
 
-	if len(server.Spec.SSHKeyNames) == 0 {
-		serverKeyName := server.ObjectMeta.Name + "-admin"
-		fmt.Printf("No SSH keys provided, using default: %s\n", serverKeyName)
-		server.Spec.SSHKeyNames = []string{serverKeyName}
-	}
 	ttl := config.DefaultTTL
 	if server.Spec.TTL != "" {
 		ttl = server.Spec.TTL
@@ -94,47 +94,30 @@ func createServer(server *types.Server) (*types.Server, error) {
 	labels["delete_after"] = timeutil.FormatDeleteAfter(time.Now().Add(duration))
 	labels["owner"] = labelutil.SanitizeValue(cfg.Owner)
 
-	sshKeys := make([]*types.SSHKey, 0)
+	// create the ssh keys locally
 	for _, sshKeyName := range server.Spec.SSHKeyNames {
-		keyExists, err := providerSvc.KeyExists(sshKeyName)
+		_, err := sshManager.CreateLocalKeyPair(sshKeyName)
 		if err != nil {
-			return nil, err
-		}
-		if !keyExists {
-			fmt.Printf("Creating new SSH key: %s\n", sshKeyName)
-			newKey, err := createKey(&types.SSHKey{
-				TypeMeta: types.TypeMeta{
-					Kind: "SSHKey",
-				},
-				ObjectMeta: types.ObjectMeta{
-					Name:   sshKeyName,
-					Labels: labels,
-				},
-			})
-			if err != nil {
-				return nil, err
-			}
-			sshKeys = append(sshKeys, newKey)
-		} else {
-			providerKey, err := providerSvc.GetSSHKey(sshKeyName)
-			if err != nil {
-				return nil, err
-			}
-			sshKeys = append(sshKeys, providerKey)
+			return nil, fmt.Errorf("failed to create local ssh key: %w", err)
 		}
 	}
-
-	cloudInitUserData := fmt.Sprintf(config.DefaultCloudInitUserData, sshKeys[0].Spec.PublicKey)
-	result, err := providerSvc.CreateServer(options.ServerCreateOpts{
-		Name:     server.ObjectMeta.Name,
-		Type:     server.Spec.ServerType,
-		Image:    server.Spec.Image,
-		Location: server.Spec.Location,
-		Provider: server.Spec.Provider,
-		SSHKeys:  sshKeys,
-		Labels:   labels,
-		UserData: cloudInitUserData,
+	sshKeys, err := providerSvc.KeyNamesToSSHKeys(server.Spec.SSHKeyNames, options.SSHKeyCreateOpts{
+		Labels: labels,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to upload ssh keys to the cloud: %w", err)
+	}
+
+	// create the cloud init user data with the admin key
+	opts, err := providerSvc.ServerToCreateOpts(server)
+	if err != nil {
+		return nil, err
+	}
+	opts.SSHKeys = sshKeys
+	result, err := providerSvc.CreateServer(opts)
+	if err != nil {
+		return nil, err
+	}
 
 	return result, err
 }

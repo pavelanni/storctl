@@ -6,7 +6,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/pavelanni/storctl/internal/provider/options"
 	"github.com/pavelanni/storctl/internal/util/output"
 	"github.com/pavelanni/storctl/internal/util/timeutil"
 	"github.com/spf13/cobra"
@@ -30,7 +29,7 @@ func NewGetLabCmd() *cobra.Command {
 }
 
 func listLabs() error {
-	labs, err := providerSvc.ListLabs(options.LabListOpts{})
+	labs, err := labManager.List()
 	if err != nil {
 		return err
 	}
@@ -74,7 +73,7 @@ func listLabs() error {
 
 func getLab(labName string) error {
 	fmt.Printf("Getting details for lab: %s\n", labName)
-	lab, err := providerSvc.GetLab(labName)
+	lab, err := labManager.Get(labName)
 	if err != nil {
 		return err
 	}

@@ -21,9 +21,9 @@ func NewDeleteLabCmd() *cobra.Command {
 				return nil
 			}
 
-			// Delete the lab using cloud provider
-			if status := providerSvc.DeleteLab(labName, skipTimeCheck); status.Error != nil {
-				return fmt.Errorf("failed to delete lab: %w", status.Error)
+			// Delete the lab using lab manager
+			if err := labManager.Delete(labName, skipTimeCheck); err != nil {
+				return fmt.Errorf("failed to delete lab: %w", err)
 			}
 
 			fmt.Printf("Successfully deleted lab %s\n", labName)

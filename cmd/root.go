@@ -8,6 +8,7 @@ import (
 
 	"github.com/pavelanni/storctl/internal/config"
 	"github.com/pavelanni/storctl/internal/dns"
+	"github.com/pavelanni/storctl/internal/lab"
 	"github.com/pavelanni/storctl/internal/provider"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -18,6 +19,7 @@ var (
 	cfg         *config.Config
 	providerSvc provider.CloudProvider
 	dnsSvc      *dns.CloudflareDNSProvider
+	labManager  lab.Manager
 	logLevel    string
 )
 
@@ -33,7 +35,7 @@ func NewRootCmd() *cobra.Command {
 			initConfig()
 			initProvider()
 			initDNS()
-
+			initLabManager()
 			return nil
 		},
 	}
@@ -84,6 +86,9 @@ func initConfig() {
 	viper.AutomaticEnv()
 	viper.SetEnvPrefix(strings.ToUpper(config.ToolName))
 
+	viper.SetDefault("storage.path", filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, "labs.db"))
+	viper.SetDefault("storage.bucket", "labs")
+
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			fmt.Fprintf(os.Stderr, "Error reading config: %v\n", err)
@@ -121,6 +126,15 @@ func initDNS() {
 		}
 	} else {
 		fmt.Fprintf(os.Stderr, "Unsupported DNS provider: %s\n", cfg.DNS.Provider)
+		os.Exit(1)
+	}
+}
+
+func initLabManager() {
+	var err error
+	labManager, err = lab.NewManager(providerSvc, cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error initializing lab manager: %v\n", err)
 		os.Exit(1)
 	}
 }

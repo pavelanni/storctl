@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
+	"github.com/pavelanni/storctl/internal/config"
 	"github.com/pavelanni/storctl/internal/provider/options"
 	"github.com/pavelanni/storctl/internal/types"
 	"github.com/pavelanni/storctl/internal/util/timeutil"
@@ -145,6 +146,25 @@ func (p *HetznerProvider) DeleteServer(serverName string, force bool) *types.Ser
 	return &types.ServerDeleteStatus{
 		Deleted: true,
 	}
+}
+
+func (p *HetznerProvider) ServerToCreateOpts(server *types.Server) (options.ServerCreateOpts, error) {
+	sshKeys, err := p.KeyNamesToSSHKeys(server.Spec.SSHKeyNames, options.SSHKeyCreateOpts{
+		Labels: server.ObjectMeta.Labels,
+	})
+	if err != nil {
+		return options.ServerCreateOpts{}, err
+	}
+	cloudInitUserData := fmt.Sprintf(config.DefaultCloudInitUserData, sshKeys[0].Spec.PublicKey)
+	return options.ServerCreateOpts{
+		Name:     server.ObjectMeta.Name,
+		Type:     server.Spec.ServerType,
+		Image:    server.Spec.Image,
+		Location: server.Spec.Location,
+		Provider: "hetzner",
+		SSHKeys:  sshKeys,
+		UserData: cloudInitUserData,
+	}, nil
 }
 
 // mapServer converts a Hetzner-specific server to our generic Server type

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/pavelanni/storctl/internal/lab"
 	"github.com/pavelanni/storctl/internal/types"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -95,8 +96,12 @@ func processDeleteResource(resource *types.Resource, assumeYes, skipTimeCheck bo
 		}
 		return nil
 	case "Lab":
-		if status := providerSvc.DeleteLab(resourceName, skipTimeCheck); status.Error != nil {
-			return fmt.Errorf("failed to delete lab: %w", status.Error)
+		labManager, err := lab.NewManager(providerSvc, cfg)
+		if err != nil {
+			return fmt.Errorf("failed to create lab manager: %w", err)
+		}
+		if err := labManager.Delete(resourceName, skipTimeCheck); err != nil {
+			return fmt.Errorf("failed to delete lab: %w", err)
 		}
 		return nil
 	default:

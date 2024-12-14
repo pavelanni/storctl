@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/spf13/viper"
 )
@@ -9,11 +11,17 @@ import (
 type Config struct {
 	Provider     ProviderConfig `mapstructure:"provider"`
 	DNS          DNSConfig      `mapstructure:"dns"`
+	Storage      StorageConfig  `mapstructure:"storage"`
 	Email        string         `mapstructure:"email" yaml:"email"`
 	Organization string         `mapstructure:"organization" yaml:"organization"`
 	Owner        string         `mapstructure:"owner" yaml:"owner"`
-	OutputFormat string
-	LogLevel     string
+	OutputFormat string         `mapstructure:"output_format" yaml:"output_format"`
+	LogLevel     string         `mapstructure:"log_level" yaml:"log_level"`
+}
+
+type StorageConfig struct {
+	Path   string `mapstructure:"path" yaml:"path"`
+	Bucket string `mapstructure:"bucket" yaml:"bucket"`
 }
 
 type ProviderConfig struct {
@@ -83,7 +91,6 @@ func LoadConfig(configPath string) (*Config, error) {
 }
 
 func setDefaults(v *viper.Viper) {
-	// Add any default values here
-	// Example:
-	// v.SetDefault("some.default.value", "default")
+	v.SetDefault("storage.path", filepath.Join(os.Getenv("HOME"), DefaultConfigDir, DefaultLabStorageFile))
+	v.SetDefault("storage.bucket", DefaultLabBucket)
 }

@@ -9,19 +9,21 @@ import (
 	"time"
 
 	"github.com/pavelanni/storctl/internal/config"
+	"github.com/pavelanni/storctl/internal/logger"
 	"github.com/pavelanni/storctl/internal/types"
 )
 
 func TestNewServerChecker(t *testing.T) {
+	logger := logger.NewLogger(slog.LevelDebug)
 	// Test creation with invalid key path
-	_, err := NewServerChecker("localhost:22", config.DefaultAdminUser, "/nonexistent/key", "debug", 1*time.Minute, 1)
+	_, err := NewServerChecker("localhost:22", config.DefaultAdminUser, "/nonexistent/key", logger, 1*time.Minute, 1)
 	if err == nil {
 		t.Error("Expected error for nonexistent key, got nil")
 	}
 
 	// Test creation with valid parameters (you'll need to provide a real test key)
 	// TODO: Add path to a test SSH key
-	checker, err := NewServerChecker("localhost:22", "testuser", "testdata/test_key", "debug", 1*time.Minute, 1)
+	checker, err := NewServerChecker("localhost:22", "testuser", "testdata/test_key", logger, 1*time.Minute, 1)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -33,6 +35,7 @@ func TestNewServerChecker(t *testing.T) {
 func TestCheckServers(t *testing.T) {
 	t.Parallel()
 
+	logger := logger.NewLogger(slog.LevelDebug)
 	// Create test servers with mock IPs
 	servers := []*types.Server{
 		{
@@ -68,7 +71,7 @@ func TestCheckServers(t *testing.T) {
 	}
 
 	// Use shorter timeout for tests
-	results, err := CheckServers(servers, "debug", 100*time.Millisecond, 2)
+	results, err := CheckServers(servers, logger, 100*time.Millisecond, 2)
 	t.Logf("results: %+v, err: %+v", results, err)
 
 	// Expect error because these are not real servers
@@ -94,13 +97,13 @@ func TestCheckServers(t *testing.T) {
 // Add a new test specifically for checkServerReady
 func TestServerChecker_checkServerReady(t *testing.T) {
 	t.Parallel()
-
+	logger := logger.NewLogger(slog.LevelDebug)
 	// Create a ServerChecker with shorter intervals for testing
 	sc, err := NewServerChecker(
 		"192.0.2.1:22", // non-routable IP
 		"testuser",
 		"testdata/test_key",
-		"debug",
+		logger,
 		5*time.Second, // total timeout
 		3,             // number of attempts
 	)

@@ -98,7 +98,7 @@ type LabSpec struct {
 }
 
 type LabStatus struct {
-	Status      string    `json:"status"`
+	State       string    `json:"state"`
 	Owner       string    `json:"owner"`
 	Servers     []*Server `json:"servers"`
 	Volumes     []*Volume `json:"volumes"`
@@ -150,6 +150,14 @@ type SSHKeyDeleteStatus struct {
 	Deleted     bool      `json:"deleted"`
 	DeleteAfter time.Time `json:"deleteAfter"`
 	Error       error     `json:"error"`
+}
+
+type SSHKeyExistsStatus struct {
+	LocalExists  bool      `json:"localExists"`
+	CloudExists  bool      `json:"cloudExists"`
+	CloudExpired bool      `json:"cloudExpired"`
+	DeleteAfter  time.Time `json:"deleteAfter"`
+	Error        error     `json:"error"`
 }
 
 // Resource represents the common fields for all resources

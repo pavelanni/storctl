@@ -22,6 +22,12 @@ func NewInitCmd() *cobra.Command {
 			if err := createTemplates(); err != nil {
 				return fmt.Errorf("error creating templates: %w", err)
 			}
+			if err := createDefaultKeysDir(); err != nil {
+				return fmt.Errorf("error creating default keys directory: %w", err)
+			}
+			if err := createDefaultLabStorage(); err != nil {
+				return fmt.Errorf("error creating default lab storage: %w", err)
+			}
 			return nil
 		},
 	}
@@ -106,5 +112,51 @@ func createTemplates() error {
 		return fmt.Errorf("error writing lab template file: %w", err)
 	}
 	fmt.Printf("Lab template file created at %s\n", labTemplateFile)
+	return nil
+}
+
+func createDefaultKeysDir() error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("error getting home directory: %w", err)
+	}
+	configDir := filepath.Join(home, config.DefaultConfigDir)
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		err = os.MkdirAll(configDir, 0755)
+		if err != nil {
+			return fmt.Errorf("error creating config directory: %w", err)
+		}
+	}
+	defaultKeysDir := filepath.Join(configDir, config.DefaultKeysDir)
+	if _, err := os.Stat(defaultKeysDir); os.IsNotExist(err) {
+		err = os.MkdirAll(defaultKeysDir, 0700)
+		if err != nil {
+			return fmt.Errorf("error creating default keys directory: %w", err)
+		}
+	}
+	fmt.Printf("Default keys directory created at %s\n", defaultKeysDir)
+	return nil
+}
+
+func createDefaultLabStorage() error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("error getting home directory: %w", err)
+	}
+	configDir := filepath.Join(home, config.DefaultConfigDir)
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		err = os.MkdirAll(configDir, 0755)
+		if err != nil {
+			return fmt.Errorf("error creating config directory: %w", err)
+		}
+	}
+	labStorageFile := filepath.Join(configDir, config.DefaultLabStorageFile)
+	if _, err := os.Stat(labStorageFile); os.IsNotExist(err) {
+		err = os.WriteFile(labStorageFile, []byte(""), 0600)
+		if err != nil {
+			return fmt.Errorf("error writing default lab storage file: %w", err)
+		}
+	}
+	fmt.Printf("Default lab storage file created at %s\n", labStorageFile)
 	return nil
 }

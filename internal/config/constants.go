@@ -22,14 +22,20 @@ const (
 	// DefaultTemplateDir is the default directory for lab templates
 	DefaultTemplateDir = "templates"
 
-	// KeysDir is the subdirectory name for storing SSH keys
-	KeysDir = "keys"
+	// DefaultKeysDir is the default directory for storing SSH keys
+	DefaultKeysDir = "keys"
 
 	// ConfigFileName is the name of the configuration file
 	ConfigFileName = "config.yaml"
 
 	// DefaultAdminUser is the default admin user
 	DefaultAdminUser = "ansible"
+
+	// DefaultLabBucket is the default bucket for storing labs
+	DefaultLabBucket = "labs"
+
+	// DefaultLabStorageFile is the default file for storing labs
+	DefaultLabStorageFile = "labs.db"
 )
 
 // Provider related constants
@@ -42,6 +48,9 @@ const (
 
 	// DefaultLocation is the default location
 	DefaultLocation = "nbg1"
+
+	// DefaultAdminKeyName is the default SSH key name
+	DefaultAdminKeyName = "aistor-admin"
 
 	// DefaultImage is the default image
 	DefaultImage = "ubuntu-24.04"

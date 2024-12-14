@@ -2,11 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
-	"github.com/pavelanni/storctl/internal/config"
+	"github.com/pavelanni/storctl/internal/ssh"
 	"github.com/spf13/cobra"
 )
 
@@ -34,22 +32,12 @@ func NewDeleteSSHKeyCmd() *cobra.Command {
 				fmt.Printf("Key %s is not ready for deletion until %s UTC\n", keyName, status.DeleteAfter.Format("2006-01-02 15:04:05"))
 				return nil
 			}
-			privateKeyPath := filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, config.KeysDir, keyName)
-			publicKeyPath := privateKeyPath + ".pub"
-			// Delete the key from the keys directory
-			// check if the file exists
-			if _, err := os.Stat(privateKeyPath); err == nil {
-				if err := os.Remove(privateKeyPath); err != nil {
-					return fmt.Errorf("failed to delete private key from the keys directory: %w", err)
-				}
+			// delete the local key pair
+			keyManager := ssh.NewManager(cfg)
+			err := keyManager.DeleteLocalKeyPair(keyName)
+			if err != nil {
+				return fmt.Errorf("failed to delete local key pair: %w", err)
 			}
-			// Delete the public key from the keys directory
-			if _, err := os.Stat(publicKeyPath); err == nil {
-				if err := os.Remove(publicKeyPath); err != nil {
-					return fmt.Errorf("failed to delete public key from the keys directory: %w", err)
-				}
-			}
-
 			fmt.Printf("Successfully deleted key %s\n", keyName)
 			return nil
 		},
