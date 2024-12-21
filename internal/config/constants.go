@@ -36,6 +36,21 @@ const (
 
 	// DefaultLabStorageFile is the default file for storing labs
 	DefaultLabStorageFile = "labs.db"
+
+	// DefaultAnsibleDir is the default directory for storing ansible files
+	DefaultAnsibleDir = "ansible"
+
+	// DefaultAnsibleConfigFile is the default ansible config file
+	DefaultAnsibleConfigFile = "ansible.cfg"
+
+	// DefaultAnsibleInventoryFile is the default ansible inventory file
+	DefaultAnsibleInventoryFile = "inventory"
+
+	// DefaultAnsiblePlaybookFile is the default ansible playbook file
+	DefaultAnsiblePlaybookFile = "site.yml"
+
+	// DefaultAnsibleExtraVarsFile is the default ansible extra vars file
+	DefaultAnsibleExtraVarsFile = "extra_vars.yml"
 )
 
 // Provider related constants

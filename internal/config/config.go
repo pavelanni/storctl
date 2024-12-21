@@ -17,6 +17,7 @@ type Config struct {
 	Owner        string         `mapstructure:"owner" yaml:"owner"`
 	OutputFormat string         `mapstructure:"output_format" yaml:"output_format"`
 	LogLevel     string         `mapstructure:"log_level" yaml:"log_level"`
+	Ansible      AnsibleConfig  `mapstructure:"ansible" yaml:"ansible"`
 }
 
 type StorageConfig struct {
@@ -36,6 +37,10 @@ type DNSConfig struct {
 	Domain   string `mapstructure:"domain"`
 	Token    string `mapstructure:"token"`
 	ZoneID   string `mapstructure:"zone_id"`
+}
+
+type AnsibleConfig struct {
+	ConfigFile string `mapstructure:"config_file"`
 }
 
 // LoadConfig reads configuration from file and environment variables

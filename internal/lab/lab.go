@@ -23,6 +23,7 @@ type Manager interface {
 	List() ([]*types.Lab, error)
 	Delete(labName string, force bool) error
 	SyncLabs() error
+	CreateAnsibleInventoryFile(lab *types.Lab) error
 }
 
 type ManagerSvc struct {
@@ -73,7 +74,6 @@ func NewLabStorage(cfg *config.Config) (*Storage, error) {
 func NewManager(provider provider.CloudProvider, cfg *config.Config) (Manager, error) {
 	sshManager := ssh.NewManager(cfg)
 	logLevel := logger.ParseLevel(cfg.LogLevel)
-	fmt.Println("logLevel", logLevel)
 	logger := logger.NewLogger(logLevel)
 	storage, err := NewLabStorage(cfg)
 	if err != nil {
@@ -87,6 +87,10 @@ func NewManager(provider provider.CloudProvider, cfg *config.Config) (Manager, e
 	}, nil
 }
 
+// Create creates a new lab
+// It creates the lab in the cloud and stores the lab in the local storage
+// It creates servers, volumes, and ssh keys
+// It also creates the ansible inventory file and the ansible vars file
 func (m *ManagerSvc) Create(lab *types.Lab) error {
 	labAdminKeyName := strings.Join([]string{lab.ObjectMeta.Name, "admin"}, "-")
 	sshKeys := make([]*types.SSHKey, 2) // 2 keys: default admin key and lab admin key
@@ -140,6 +144,8 @@ func (m *ManagerSvc) Create(lab *types.Lab) error {
 			Location: s.Spec.Location,
 			Provider: s.Spec.Provider,
 			SSHKeys:  sshKeys,
+			Labels:   s.ObjectMeta.Labels,
+			UserData: fmt.Sprintf(config.DefaultCloudInitUserData, labAdminPublicKey),
 		})
 		if err != nil {
 			return err
@@ -192,11 +198,13 @@ func (m *ManagerSvc) Create(lab *types.Lab) error {
 			ServerName: v.Spec.ServerName,
 			Automount:  v.Spec.Automount,
 			Format:     v.Spec.Format,
+			Labels:     v.ObjectMeta.Labels,
 		})
 		if err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 

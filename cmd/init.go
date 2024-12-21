@@ -28,6 +28,9 @@ func NewInitCmd() *cobra.Command {
 			if err := createDefaultLabStorage(); err != nil {
 				return fmt.Errorf("error creating default lab storage: %w", err)
 			}
+			if err := createDefaultAnsibleDir(); err != nil {
+				return fmt.Errorf("error creating default ansible directory: %w", err)
+			}
 			return nil
 		},
 	}
@@ -158,5 +161,28 @@ func createDefaultLabStorage() error {
 		}
 	}
 	fmt.Printf("Default lab storage file created at %s\n", labStorageFile)
+	return nil
+}
+
+func createDefaultAnsibleDir() error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("error getting home directory: %w", err)
+	}
+	configDir := filepath.Join(home, config.DefaultConfigDir)
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		err = os.MkdirAll(configDir, 0755)
+		if err != nil {
+			return fmt.Errorf("error creating config directory: %w", err)
+		}
+	}
+	ansibleDir := filepath.Join(configDir, config.DefaultAnsibleDir)
+	if _, err := os.Stat(ansibleDir); os.IsNotExist(err) {
+		err = os.MkdirAll(ansibleDir, 0755)
+		if err != nil {
+			return fmt.Errorf("error creating ansible directory: %w", err)
+		}
+	}
+	fmt.Printf("Ansible directory created at %s\n", ansibleDir)
 	return nil
 }

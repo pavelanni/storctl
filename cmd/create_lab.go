@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/pavelanni/storctl/internal/config"
-	"github.com/pavelanni/storctl/internal/lab"
 	"github.com/pavelanni/storctl/internal/types"
 	"github.com/pavelanni/storctl/internal/util/labelutil"
 	"github.com/pavelanni/storctl/internal/util/timeutil"
@@ -24,6 +23,7 @@ func NewCreateLabCmd() *cobra.Command {
 		provider string
 		location string
 		ttl      string
+		playbook string
 	)
 
 	cmd := &cobra.Command{
@@ -32,7 +32,7 @@ func NewCreateLabCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name = args[0]
-			lab, err := labFromTemplate(template, name, provider, location, ttl)
+			lab, err := labFromTemplate(template, name, provider, location, ttl, playbook)
 			if err != nil {
 				return fmt.Errorf("error parsing lab template: %w", err)
 			}
@@ -49,6 +49,7 @@ func NewCreateLabCmd() *cobra.Command {
 	cmd.Flags().StringVar(&provider, "provider", config.DefaultProvider, "provider to use")
 	cmd.Flags().StringVar(&location, "location", config.DefaultLocation, "location to use")
 	cmd.Flags().StringVar(&ttl, "ttl", config.DefaultTTL, "ttl to use")
+	cmd.Flags().StringVar(&playbook, "playbook", "site.yml", "playbook to use")
 
 	return cmd
 }
@@ -68,20 +69,28 @@ func createLab(newLab *types.Lab) (*types.Lab, error) {
 	}
 	newLab.ObjectMeta.Labels["delete_after"] = timeutil.FormatDeleteAfter(time.Now().Add(duration))
 
-	labManager, err := lab.NewManager(providerSvc, cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create lab manager: %w", err)
-	}
 	if err := labManager.Create(newLab); err != nil {
+		return nil, err
+	}
+	// get the lab again to get the status
+	newLab, err = labManager.Get(newLab.ObjectMeta.Name)
+	if err != nil {
 		return nil, err
 	}
 	if err := addDNSRecords(newLab); err != nil {
 		return nil, err
 	}
+	newLab, err = labManager.Get(newLab.ObjectMeta.Name) // get the lab again to get the status
+	if err != nil {
+		return nil, err
+	}
+	if err := labManager.CreateAnsibleInventoryFile(newLab); err != nil {
+		return nil, err
+	}
 	return newLab, nil
 }
 
-func labFromTemplate(template, name, provider, location, ttl string) (*types.Lab, error) {
+func labFromTemplate(template, name, provider, location, ttl, playbook string) (*types.Lab, error) {
 	// Check if the template file exists
 	if _, err := os.Stat(template); os.IsNotExist(err) {
 		// Check if it exists in the default template directory
@@ -101,11 +110,36 @@ func labFromTemplate(template, name, provider, location, ttl string) (*types.Lab
 	if err := decoder.Decode(lab); err != nil {
 		return nil, fmt.Errorf("error decoding YAML: %w", err)
 	}
+
+	// Set values with defaults using the common pattern:
 	lab.ObjectMeta.Name = name
-	lab.Spec.Provider = provider
-	lab.Spec.Location = location
-	lab.Spec.TTL = ttl
+	lab.Spec.Provider = defaultIfEmpty(lab.Spec.Provider, provider)
+	lab.Spec.Location = defaultIfEmpty(lab.Spec.Location, location)
+	lab.Spec.TTL = defaultIfEmpty(lab.Spec.TTL, ttl)
+	lab.Spec.CertManager = defaultIfEmptyBool(lab.Spec.CertManager, true)
+	lab.Spec.LetsEncrypt = defaultIfEmpty(lab.Spec.LetsEncrypt, "staging")
+	lab.Spec.Ansible.Playbook = defaultIfEmpty(lab.Spec.Ansible.Playbook, playbook)
+	lab.Spec.Ansible.User = defaultIfEmpty(lab.Spec.Ansible.User, config.DefaultAdminUser)
+	lab.Spec.Ansible.Inventory = defaultIfEmpty(lab.Spec.Ansible.Inventory, "inventory.json")
+	lab.Spec.Ansible.ConfigFile = defaultIfEmpty(lab.Spec.Ansible.ConfigFile, "ansible.cfg")
+
 	return lab, nil
+}
+
+// Helper function to handle default string values
+func defaultIfEmpty(value, defaultValue string) string {
+	if value == "" {
+		return defaultValue
+	}
+	return value
+}
+
+// Same for bool values (we'll use generics later, if necessary)
+func defaultIfEmptyBool(value, defaultValue bool) bool {
+	if !value {
+		return defaultValue
+	}
+	return value
 }
 
 func addDNSRecords(lab *types.Lab) error {
@@ -130,7 +164,7 @@ func addDNSRecords(lab *types.Lab) error {
 	// Add a DNS record for 'aistor.' using the IP of the control plane server
 	cpPublicNet := lab.Status.Servers[0].Status.PublicNet
 	if err := dnsSvc.AddRecord(cfg.DNS.ZoneID,
-		strings.Join([]string{labName, "aistor"}, "."),
+		strings.Join([]string{"aistor", labName}, "."),
 		"A",
 		cpPublicNet.IPv4.IP,
 		false); err != nil {

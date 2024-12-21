@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Lab
 metadata:
-  name: aistor-lab
+  name: aistor-lab1
   labels:
     project: aistor
 spec:
@@ -9,13 +9,13 @@ spec:
   provider: hetzner
   location: nbg1
   servers:
-  - name: cp
+  - name: cp # control plane server; make sure it ends with 'cp'
     serverType: cx22
     image: ubuntu-24.04
-  - name: node-01
+  - name: node-01 # worker node
     serverType: cx22
     image: ubuntu-24.04
-  - name: node-02
+  - name: node-02 # worker node
     serverType: cx22
     image: ubuntu-24.04
   volumes:

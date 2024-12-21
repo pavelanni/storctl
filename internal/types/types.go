@@ -90,11 +90,14 @@ type Lab struct {
 }
 
 type LabSpec struct {
-	Servers  []*LabServerSpec `json:"servers"`
-	Volumes  []*LabVolumeSpec `json:"volumes"`
-	TTL      string           `json:"ttl"`
-	Provider string           `json:"provider"`
-	Location string           `json:"location"`
+	Servers     []*LabServerSpec `json:"servers"`
+	Volumes     []*LabVolumeSpec `json:"volumes"`
+	TTL         string           `json:"ttl"`
+	Provider    string           `json:"provider"`
+	Location    string           `json:"location"`
+	Ansible     AnsibleSpec      `json:"ansible"`
+	CertManager bool             `json:"certManager"`
+	LetsEncrypt string           `json:"letsEncrypt"` // prod or staging
 }
 
 type LabStatus struct {
@@ -158,6 +161,13 @@ type SSHKeyExistsStatus struct {
 	CloudExpired bool      `json:"cloudExpired"`
 	DeleteAfter  time.Time `json:"deleteAfter"`
 	Error        error     `json:"error"`
+}
+
+type AnsibleSpec struct {
+	ConfigFile string `json:"configFile"`
+	Inventory  string `json:"inventory"`
+	Playbook   string `json:"playbook"`
+	User       string `json:"user"`
 }
 
 // Resource represents the common fields for all resources
