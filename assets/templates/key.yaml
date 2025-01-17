@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Key
+metadata:
+  name: my-ssh-key1
+spec:
+  provider: hetzner
+  ttl: 1h

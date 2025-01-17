@@ -54,12 +54,12 @@ func NewCreateLabCmd() *cobra.Command {
 	return cmd
 }
 
-func createLab(newLab *types.Lab) (*types.Lab, error) {
-	newLab.ObjectMeta.Labels["owner"] = labelutil.SanitizeValue(cfg.Owner)
-	newLab.ObjectMeta.Labels["organization"] = labelutil.SanitizeValue(cfg.Organization)
-	newLab.ObjectMeta.Labels["email"] = labelutil.SanitizeValue(cfg.Email)
-	newLab.ObjectMeta.Labels["lab_name"] = newLab.ObjectMeta.Name
-	ttl := newLab.Spec.TTL
+func createLab(lab *types.Lab) (*types.Lab, error) {
+	lab.ObjectMeta.Labels["owner"] = labelutil.SanitizeValue(cfg.Owner)
+	lab.ObjectMeta.Labels["organization"] = labelutil.SanitizeValue(cfg.Organization)
+	lab.ObjectMeta.Labels["email"] = labelutil.SanitizeValue(cfg.Email)
+	lab.ObjectMeta.Labels["lab_name"] = lab.ObjectMeta.Name
+	ttl := lab.Spec.TTL
 	if ttl == "" {
 		ttl = config.DefaultTTL
 	}
@@ -67,27 +67,37 @@ func createLab(newLab *types.Lab) (*types.Lab, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ttl: %w", err)
 	}
-	newLab.ObjectMeta.Labels["delete_after"] = timeutil.FormatDeleteAfter(time.Now().Add(duration))
+	lab.ObjectMeta.Labels["delete_after"] = timeutil.FormatDeleteAfter(time.Now().Add(duration))
 
-	if err := labManager.Create(newLab); err != nil {
+	if err := labSvc.Create(lab); err != nil { // labSvc is a package variable created in root.go
 		return nil, err
 	}
 	// get the lab again to get the status
-	newLab, err = labManager.Get(newLab.ObjectMeta.Name)
+	labUpdated, err := labSvc.Get(lab.ObjectMeta.Name)
 	if err != nil {
 		return nil, err
 	}
-	if err := addDNSRecords(newLab); err != nil {
+	lab.Status = labUpdated.Status
+	labSvc.Logger.Debug("Lab before DNS", "lab", lab)
+	if err := addDNSRecords(lab); err != nil {
 		return nil, err
 	}
-	newLab, err = labManager.Get(newLab.ObjectMeta.Name) // get the lab again to get the status
+	// Create ansible inventory file
+	err = labSvc.CreateAnsibleInventoryFile(lab)
 	if err != nil {
 		return nil, err
 	}
-	if err := labManager.CreateAnsibleInventoryFile(newLab); err != nil {
-		return nil, err
+	// Run ansible playbook
+	if lab.Spec.Ansible.Playbook != "" {
+		err = labSvc.RunAnsiblePlaybook(lab)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		labSvc.Logger.Debug("No playbook specified", "lab", lab)
+		fmt.Println("No playbook specified. Skipping Ansible playbook.")
 	}
-	return newLab, nil
+	return lab, nil
 }
 
 func labFromTemplate(template, name, provider, location, ttl, playbook string) (*types.Lab, error) {
@@ -126,6 +136,38 @@ func labFromTemplate(template, name, provider, location, ttl, playbook string) (
 	return lab, nil
 }
 
+func addDNSRecords(lab *types.Lab) error {
+	labName, ok := lab.ObjectMeta.Labels["lab_name"]
+	if !ok {
+		labName = "no-lab"
+	}
+	labName = strings.ToLower(labName)
+	for i, server := range lab.Status.Servers {
+		serverName := strings.ToLower(server.Name)
+		// remove the leading labName with "-" from the serverName
+		serverName = strings.TrimPrefix(serverName, labName+"-")
+		err := dnsSvc.AddRecord(cfg.DNS.ZoneID,
+			strings.Join([]string{serverName, labName}, "."),
+			"A",
+			server.Status.PublicNet.IPv4.IP,
+			false)
+		if err != nil {
+			return err
+		}
+		lab.Status.Servers[i].Status.PublicNet.FQDN = strings.Join([]string{serverName, labName, cfg.DNS.Domain}, ".")
+	}
+	// Add a DNS record for 'aistor.' using the IP of the control plane server
+	cpPublicNet := lab.Status.Servers[0].Status.PublicNet
+	if err := dnsSvc.AddRecord(cfg.DNS.ZoneID,
+		strings.Join([]string{"aistor", labName}, "."),
+		"A",
+		cpPublicNet.IPv4.IP,
+		false); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Helper function to handle default string values
 func defaultIfEmpty(value, defaultValue string) string {
 	if value == "" {
@@ -140,35 +182,4 @@ func defaultIfEmptyBool(value, defaultValue bool) bool {
 		return defaultValue
 	}
 	return value
-}
-
-func addDNSRecords(lab *types.Lab) error {
-	labName, ok := lab.ObjectMeta.Labels["lab_name"]
-	if !ok {
-		labName = "no-lab"
-	}
-	labName = strings.ToLower(labName)
-	for _, server := range lab.Status.Servers {
-		serverName := strings.ToLower(server.Name)
-		// remove the leading labName with "-" from the serverName
-		serverName = strings.TrimPrefix(serverName, labName+"-")
-		err := dnsSvc.AddRecord(cfg.DNS.ZoneID,
-			strings.Join([]string{serverName, labName}, "."),
-			"A",
-			server.Status.PublicNet.IPv4.IP,
-			false)
-		if err != nil {
-			return err
-		}
-	}
-	// Add a DNS record for 'aistor.' using the IP of the control plane server
-	cpPublicNet := lab.Status.Servers[0].Status.PublicNet
-	if err := dnsSvc.AddRecord(cfg.DNS.ZoneID,
-		strings.Join([]string{"aistor", labName}, "."),
-		"A",
-		cpPublicNet.IPv4.IP,
-		false); err != nil {
-		return err
-	}
-	return nil
 }

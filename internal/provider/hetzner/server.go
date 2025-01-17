@@ -25,12 +25,6 @@ func (p *HetznerProvider) CreateServer(opts options.ServerCreateOpts) (*types.Se
 	for _, sshKey := range opts.SSHKeys {
 		sshKeyNames = append(sshKeyNames, sshKey.ObjectMeta.Name)
 	}
-	p.logger.Debug("creating server",
-		"name", opts.Name,
-		"type", opts.Type,
-		"image", opts.Image,
-		"location", opts.Location,
-		"ssh_keys", sshKeyNames)
 	hCloudSSHKeys := make([]*hcloud.SSHKey, 0)
 	for _, sshKey := range opts.SSHKeys {
 		hCloudKey, _, err := p.Client.SSHKey.Get(context.Background(), sshKey.ObjectMeta.Name)

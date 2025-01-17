@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aistor-ingress
+  namespace: aistor
+  annotations:
+{% if cert_manager_enable | default(false) | bool %}
+    cert-manager.io/cluster-issuer: "letsencrypt-{{ letsencrypt_environment }}"
+{% endif %}
+    nginx.ingress.kubernetes.io/proxy-body-size: 1g
+spec:
+  tls:
+  - hosts:
+    - aistor.{{ lab_name }}.{{ domain_name }}
+    secretName: aistor-tls
+  rules:
+  - host: aistor.{{ lab_name }}.{{ domain_name }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: aistor
+            port:
+              number: 8444

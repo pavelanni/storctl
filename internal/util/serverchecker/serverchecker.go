@@ -13,6 +13,7 @@ import (
 
 	"github.com/pavelanni/storctl/internal/config"
 	"github.com/pavelanni/storctl/internal/types"
+	"golang.org/x/crypto/ssh"
 )
 
 type ServerChecker struct {
@@ -151,8 +152,13 @@ func (sc *ServerChecker) checkServerReady(ctx context.Context) error {
 			// Check cloud-init status
 			cloudInitStatus, err := sc.client.ExecCommand("cloud-init status --wait")
 			if err != nil {
-				sc.logger.Debug("Cloud-init check failed", "host", sc.host, "attempt", attempt, "error", err)
-				continue
+				if exitErr, ok := err.(*ssh.ExitError); ok && exitErr.ExitStatus() == 2 {
+					// Exit code 2 means warning, which we'll accept
+					sc.logger.Debug("Cloud-init completed with warnings", "host", sc.host, "attempt", attempt)
+				} else {
+					sc.logger.Debug("Cloud-init check failed", "host", sc.host, "attempt", attempt, "error", err)
+					continue
+				}
 			}
 			if !strings.Contains(cloudInitStatus, "done") {
 				sc.logger.Debug("Cloud-init not done yet", "host", sc.host, "attempt", attempt, "status", strings.TrimSpace(cloudInitStatus))

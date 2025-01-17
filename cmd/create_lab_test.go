@@ -52,9 +52,9 @@ func TestCreateLabCmd(t *testing.T) {
 			}
 
 			// Store the current provider and restore it after the test
-			originalManager := labManager
-			labManager = mockManager
-			defer func() { labManager = originalManager }()
+			originalManager := labSvc
+			labSvc = mockManager.ManagerSvc
+			defer func() { labSvc = originalManager }()
 
 			// Store the current config and restore it after the test
 			originalCfg := cfg

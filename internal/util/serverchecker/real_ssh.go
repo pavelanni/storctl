@@ -65,7 +65,10 @@ func (r *RealSSHClient) ExecCommand(cmd string) (string, error) {
 	var output bytes.Buffer
 	session.Stdout = &output
 	if err := session.Run(cmd); err != nil {
-		return output.String(), fmt.Errorf("run command: %w", err)
+		if exitErr, ok := err.(*ssh.ExitError); ok {
+			return output.String(), exitErr
+		}
+		return output.String(), err
 	}
 	return output.String(), nil
 }

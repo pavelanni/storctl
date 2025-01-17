@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Lab
+metadata:
+  name: aistor-lab
+  labels:
+    project: aistor
+spec:
+  ttl: 1h
+  provider: hetzner
+  location: nbg1
+  servers:
+    - name: cp
+      type: cx22
+      image: ubuntu-24.04
+    - name: node-01
+      type: cx22
+      image: ubuntu-24.04
+  volumes:
+    - name: volume-01
+      server: node-01
+      size: 100
+      automount: false
+      format: xfs
+    - name: volume-02
+      server: node-01
+      size: 100
+      automount: false
+      format: xfs
+    - name: volume-03
+      server: node-01
+      size: 100
+      automount: false
+      format: xfs
+    - name: volume-04
+      server: node-01
+      size: 100
+      automount: false
+      format: xfs
+  ansible:
+    playbook: site.yml

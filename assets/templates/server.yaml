@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Server
+metadata:
+  name: my-server
+  labels:
+    environment: dev
+spec:
+  provider: hetzner
+  location: fsn1
+  serverType: cx22
+  ttl: 1h
+  image: ubuntu-24.04

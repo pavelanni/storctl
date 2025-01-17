@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
+	"github.com/pavelanni/storctl/assets"
 	"github.com/pavelanni/storctl/internal/config"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -28,8 +31,8 @@ func NewInitCmd() *cobra.Command {
 			if err := createDefaultLabStorage(); err != nil {
 				return fmt.Errorf("error creating default lab storage: %w", err)
 			}
-			if err := createDefaultAnsibleDir(); err != nil {
-				return fmt.Errorf("error creating default ansible directory: %w", err)
+			if err := createPlaybooks(); err != nil {
+				return fmt.Errorf("error creating playbooks: %w", err)
 			}
 			return nil
 		},
@@ -104,18 +107,29 @@ func createTemplates() error {
 			return fmt.Errorf("error creating templates directory: %w", err)
 		}
 	}
-	labTemplateFile := filepath.Join(templatesDir, "lab.yaml")
-	// if the lab template file already exists, print a message and exit
-	if _, err := os.Stat(labTemplateFile); !os.IsNotExist(err) {
-		fmt.Printf("Lab template file already exists at %s\n", labTemplateFile)
-		return nil
-	}
-	err = os.WriteFile(labTemplateFile, []byte(config.DefaultLabTemplate), 0644)
+	return initializeFiles(assets.TemplateFiles, "templates", templatesDir, false)
+}
+
+func createPlaybooks() error {
+	home, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("error writing lab template file: %w", err)
+		return fmt.Errorf("error getting home directory: %w", err)
 	}
-	fmt.Printf("Lab template file created at %s\n", labTemplateFile)
-	return nil
+	configDir := filepath.Join(home, config.DefaultConfigDir)
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		err = os.MkdirAll(configDir, 0755)
+		if err != nil {
+			return fmt.Errorf("error creating config directory: %w", err)
+		}
+	}
+	playbooksDir := filepath.Join(configDir, config.DefaultAnsibleDir, "playbooks")
+	if _, err := os.Stat(playbooksDir); os.IsNotExist(err) {
+		err = os.MkdirAll(playbooksDir, 0755)
+		if err != nil {
+			return fmt.Errorf("error creating playbooks directory: %w", err)
+		}
+	}
+	return initializeFiles(assets.PlaybookFiles, "playbooks", playbooksDir, false)
 }
 
 func createDefaultKeysDir() error {
@@ -164,25 +178,39 @@ func createDefaultLabStorage() error {
 	return nil
 }
 
-func createDefaultAnsibleDir() error {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("error getting home directory: %w", err)
+func initializeFiles(sourceFS embed.FS, sourceDir, targetDir string, overwrite bool) error {
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return err
 	}
-	configDir := filepath.Join(home, config.DefaultConfigDir)
-	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		err = os.MkdirAll(configDir, 0755)
+
+	return fs.WalkDir(sourceFS, sourceDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return fmt.Errorf("error creating config directory: %w", err)
+			return err
 		}
-	}
-	ansibleDir := filepath.Join(configDir, config.DefaultAnsibleDir)
-	if _, err := os.Stat(ansibleDir); os.IsNotExist(err) {
-		err = os.MkdirAll(ansibleDir, 0755)
+
+		if d.IsDir() {
+			return nil
+		}
+
+		content, err := sourceFS.ReadFile(path)
 		if err != nil {
-			return fmt.Errorf("error creating ansible directory: %w", err)
+			return err
 		}
-	}
-	fmt.Printf("Ansible directory created at %s\n", ansibleDir)
-	return nil
+
+		relPath := path[len(sourceDir+"/"):]
+		targetPath := filepath.Join(targetDir, relPath)
+
+		// Ensure subdirectories exist
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			return err
+		}
+
+		// Write file based on overwrite parameter
+		if !overwrite {
+			if _, err := os.Stat(targetPath); !os.IsNotExist(err) {
+				return nil // Skip if file exists and overwrite is false
+			}
+		}
+		return os.WriteFile(targetPath, content, 0644)
+	})
 }

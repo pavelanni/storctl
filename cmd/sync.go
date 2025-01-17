@@ -12,7 +12,7 @@ func NewSyncCmd() *cobra.Command {
 		Short: "Sync labs",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := labManager.SyncLabs(); err != nil {
+			if err := labSvc.SyncLabs(); err != nil {
 				return fmt.Errorf("error syncing labs: %w", err)
 			}
 			return nil
