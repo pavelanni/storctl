@@ -12,6 +12,7 @@ import (
 	"log/slog"
 
 	"github.com/pavelanni/storctl/internal/config"
+	"github.com/pavelanni/storctl/internal/logger"
 	"github.com/pavelanni/storctl/internal/types"
 	"golang.org/x/crypto/ssh"
 )
@@ -31,13 +32,11 @@ type ServerResult struct {
 	Error  error
 }
 
-func NewServerChecker(host string, user string, keyPath string, logger *slog.Logger, timeout time.Duration, attempts int) (*ServerChecker, error) {
-	// check if key exists
+func NewServerChecker(host string, user string, keyPath string, timeout time.Duration, attempts int) (*ServerChecker, error) {
 	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("key file does not exist: %s", keyPath)
 	}
 
-	// Create real SSH client here
 	client := &RealSSHClient{
 		host:    host,
 		user:    user,
@@ -49,7 +48,7 @@ func NewServerChecker(host string, user string, keyPath string, logger *slog.Log
 		host:     host,
 		attempts: attempts,
 		timeout:  timeout,
-		logger:   logger,
+		logger:   logger.Get(),
 	}, nil
 }
 
@@ -73,7 +72,7 @@ func CheckServers(servers []*types.Server, logger *slog.Logger, timeout time.Dur
 
 		go func(i int, server *types.Server) {
 			defer wg.Done()
-			sc, err := NewServerChecker(serverIP+":22", config.DefaultAdminUser, serverPrivateKeyPath, logger, timeout, attempts)
+			sc, err := NewServerChecker(serverIP+":22", config.DefaultAdminUser, serverPrivateKeyPath, timeout, attempts)
 			if err != nil {
 				results[i] = ServerResult{Server: server, Error: err}
 				return

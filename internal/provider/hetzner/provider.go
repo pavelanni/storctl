@@ -22,14 +22,17 @@ func New(cfg *config.Config) (*HetznerProvider, error) {
 	}
 
 	// Create a new logger with the configured log level
-	logLevel := logger.ParseLevel(cfg.LogLevel)
-	providerLogger := logger.NewLogger(logLevel)
+	logger := logger.Get()
+	logger.Info("Initializing Hetzner provider")
+	logger.Debug("Using configuration",
+		"location", cfg.Provider.Location,
+		"credentials_present", cfg.Provider.Token != "")
 
 	client := hcloud.NewClient(hcloud.WithToken(token))
 	p := &HetznerProvider{
 		Client: client,
 		config: cfg,
-		logger: providerLogger,
+		logger: logger,
 	}
 
 	return p, nil
