@@ -64,7 +64,12 @@ func (m *ManagerSvc) CreateAnsibleInventoryFile(lab *types.Lab) error {
 		Hosts: make(map[string]Host),
 	}
 	for _, server := range lab.Status.Servers {
-		m.Logger.Debug("Adding to Ansible inventory file", "server", server.Status.PublicNet.FQDN, "public_ip", server.Status.PublicNet.IPv4.IP)
+		m.Logger.Info("Generating Ansible inventory",
+			"lab", lab.ObjectMeta.Name,
+			"server_count", len(lab.Status.Servers))
+		m.Logger.Debug("Adding server to inventory",
+			"hostname", server.Status.PublicNet.FQDN,
+			"cloud name", server.ObjectMeta.Name)
 		if strings.HasSuffix(server.ObjectMeta.Name, "cp") {
 			controlPlaneGroup.Hosts[server.Status.PublicNet.FQDN] = Host{
 				AnsibleHost: server.Status.PublicNet.IPv4.IP,

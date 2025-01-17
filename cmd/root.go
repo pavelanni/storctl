@@ -9,6 +9,7 @@ import (
 	"github.com/pavelanni/storctl/internal/config"
 	"github.com/pavelanni/storctl/internal/dns"
 	"github.com/pavelanni/storctl/internal/lab"
+	"github.com/pavelanni/storctl/internal/logger"
 	"github.com/pavelanni/storctl/internal/provider"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -28,10 +29,16 @@ func NewRootCmd() *cobra.Command {
 		Use:   config.ToolName,
 		Short: fmt.Sprintf("%s - AIStor Environment Manager", config.ToolName),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			// Initialize everything before running any command execpt init
+			// Initialize logger first
+			logLevel := logger.ParseLevel(viper.GetString("log_level"))
+			logger.Initialize(logLevel)
+
+			// Skip other initializations for init command
 			if cmd.Name() == "init" {
 				return nil
 			}
+
+			// Continue with other initializations
 			initConfig()
 			initProvider()
 			initDNS()
@@ -43,7 +50,7 @@ func NewRootCmd() *cobra.Command {
 	// Global flags
 	defaultConfigFile := filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, "config.yaml")
 	cmd.PersistentFlags().StringVar(&cfgFile, "config", defaultConfigFile, "config file")
-	cmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "logging level (debug, info, warn, error)")
+	cmd.PersistentFlags().StringVar(&logLevel, "log-level", "warn", "logging level (debug, info, warn, error)")
 	err := viper.BindPFlag("log_level", cmd.PersistentFlags().Lookup("log-level"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error binding log level flag: %v\n", err)

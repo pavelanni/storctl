@@ -78,7 +78,18 @@ func createLab(lab *types.Lab) (*types.Lab, error) {
 		return nil, err
 	}
 	lab.Status = labUpdated.Status
-	labSvc.Logger.Debug("Lab before DNS", "lab", lab)
+	fmt.Printf("Creating lab %s...\n", lab.ObjectMeta.Name)
+	labSvc.Logger.Info("Creating new lab",
+		"name", lab.ObjectMeta.Name,
+		"nodes", len(lab.Spec.Servers))
+	labSvc.Logger.Debug("Lab configuration", "lab", lab) // Detailed config for debugging
+
+	if lab.Spec.Ansible.Playbook != "" {
+		fmt.Printf("Running Ansible playbook %s...\n", lab.Spec.Ansible.Playbook)
+	} else {
+		fmt.Println("No playbook specified. Skipping Ansible configuration.")
+	}
+
 	if err := addDNSRecords(lab); err != nil {
 		return nil, err
 	}

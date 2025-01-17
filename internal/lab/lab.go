@@ -74,8 +74,6 @@ func NewLabStorage(cfg *config.Config) (*Storage, error) {
 
 func NewManager(provider provider.CloudProvider, cfg *config.Config) (*ManagerSvc, error) {
 	sshManager := ssh.NewManager(cfg)
-	logLevel := logger.ParseLevel(cfg.LogLevel)
-	logger := logger.NewLogger(logLevel)
 	storage, err := NewLabStorage(cfg)
 	if err != nil {
 		return nil, err
@@ -84,7 +82,7 @@ func NewManager(provider provider.CloudProvider, cfg *config.Config) (*ManagerSv
 		Storage:    storage,
 		Provider:   provider,
 		SshManager: sshManager,
-		Logger:     logger,
+		Logger:     logger.Get(),
 	}, nil
 }
 

@@ -23,10 +23,9 @@ type Manager struct {
 }
 
 func NewManager(cfg *config.Config) *Manager {
-	logLevel := logger.ParseLevel(cfg.LogLevel)
 	return &Manager{
 		keysDir: filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, config.DefaultKeysDir),
-		logger:  logger.NewLogger(logLevel),
+		logger:  logger.Get(),
 	}
 }
 

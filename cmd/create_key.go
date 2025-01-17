@@ -95,9 +95,9 @@ func createKey(key *types.SSHKey) (*types.SSHKey, error) {
 			return key, nil
 		} else {
 			fmt.Printf("SSH key %s already exists on the provider but is different from the local key. Replacing it.\n", keyName)
-			err := providerSvc.DeleteSSHKey(keyName, true)
-			if err != nil {
-				return nil, fmt.Errorf("failed to delete key from provider: %w", err)
+			status := providerSvc.DeleteSSHKey(keyName, true)
+			if status.Error != nil {
+				return nil, fmt.Errorf("failed to delete key from provider: %w", status.Error)
 			}
 		}
 	}
