@@ -19,7 +19,7 @@ var (
 	cfg         *config.Config
 	providerSvc provider.CloudProvider
 	dnsSvc      *dns.CloudflareDNSProvider
-	labManager  lab.Manager
+	labSvc      *lab.ManagerSvc
 	logLevel    string
 )
 
@@ -132,7 +132,7 @@ func initDNS() {
 
 func initLabManager() {
 	var err error
-	labManager, err = lab.NewManager(providerSvc, cfg)
+	labSvc, err = lab.NewManager(providerSvc, cfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error initializing lab manager: %v\n", err)
 		os.Exit(1)

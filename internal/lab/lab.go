@@ -24,13 +24,14 @@ type Manager interface {
 	Delete(labName string, force bool) error
 	SyncLabs() error
 	CreateAnsibleInventoryFile(lab *types.Lab) error
+	RunAnsiblePlaybook(lab *types.Lab) error
 }
 
 type ManagerSvc struct {
-	provider   provider.CloudProvider
-	sshManager *ssh.Manager
-	storage    *Storage
-	logger     *slog.Logger
+	Provider   provider.CloudProvider
+	SshManager *ssh.Manager
+	Storage    *Storage
+	Logger     *slog.Logger
 }
 
 type Storage struct {
@@ -71,7 +72,7 @@ func NewLabStorage(cfg *config.Config) (*Storage, error) {
 	}, nil
 }
 
-func NewManager(provider provider.CloudProvider, cfg *config.Config) (Manager, error) {
+func NewManager(provider provider.CloudProvider, cfg *config.Config) (*ManagerSvc, error) {
 	sshManager := ssh.NewManager(cfg)
 	logLevel := logger.ParseLevel(cfg.LogLevel)
 	logger := logger.NewLogger(logLevel)
@@ -80,17 +81,16 @@ func NewManager(provider provider.CloudProvider, cfg *config.Config) (Manager, e
 		return nil, err
 	}
 	return &ManagerSvc{
-		storage:    storage,
-		provider:   provider,
-		sshManager: sshManager,
-		logger:     logger,
+		Storage:    storage,
+		Provider:   provider,
+		SshManager: sshManager,
+		Logger:     logger,
 	}, nil
 }
 
 // Create creates a new lab
 // It creates the lab in the cloud and stores the lab in the local storage
 // It creates servers, volumes, and ssh keys
-// It also creates the ansible inventory file and the ansible vars file
 func (m *ManagerSvc) Create(lab *types.Lab) error {
 	labAdminKeyName := strings.Join([]string{lab.ObjectMeta.Name, "admin"}, "-")
 	sshKeys := make([]*types.SSHKey, 2) // 2 keys: default admin key and lab admin key
@@ -99,11 +99,11 @@ func (m *ManagerSvc) Create(lab *types.Lab) error {
 			Name: config.DefaultAdminKeyName,
 		},
 	}
-	labAdminPublicKey, err := m.sshManager.CreateLocalKeyPair(labAdminKeyName)
+	labAdminPublicKey, err := m.SshManager.CreateLocalKeyPair(labAdminKeyName)
 	if err != nil {
 		return err
 	}
-	labAdminCloudKey, err := m.provider.CreateSSHKey(options.SSHKeyCreateOpts{
+	labAdminCloudKey, err := m.Provider.CreateSSHKey(options.SSHKeyCreateOpts{
 		Name:      labAdminKeyName,
 		PublicKey: labAdminPublicKey,
 	})
@@ -137,7 +137,7 @@ func (m *ManagerSvc) Create(lab *types.Lab) error {
 				Image:      serverSpec.Image,
 			},
 		}
-		result, err := m.provider.CreateServer(options.ServerCreateOpts{
+		result, err := m.Provider.CreateServer(options.ServerCreateOpts{
 			Name:     s.ObjectMeta.Name,
 			Type:     s.Spec.ServerType,
 			Image:    s.Spec.Image,
@@ -156,7 +156,7 @@ func (m *ManagerSvc) Create(lab *types.Lab) error {
 	// Wait for servers to be ready
 	timeout := 30 * time.Minute
 	attempts := 20
-	results, err := serverchecker.CheckServers(servers, m.logger, timeout, attempts)
+	results, err := serverchecker.CheckServers(servers, m.Logger, timeout, attempts)
 	if err != nil {
 		return err
 	}
@@ -192,7 +192,7 @@ func (m *ManagerSvc) Create(lab *types.Lab) error {
 				Format:     volumeSpec.Format,
 			},
 		}
-		_, err := m.provider.CreateVolume(options.VolumeCreateOpts{
+		_, err := m.Provider.CreateVolume(options.VolumeCreateOpts{
 			Name:       v.ObjectMeta.Name,
 			Size:       v.Spec.Size,
 			ServerName: v.Spec.ServerName,
@@ -209,7 +209,7 @@ func (m *ManagerSvc) Create(lab *types.Lab) error {
 }
 
 func (m *ManagerSvc) Get(labName string) (*types.Lab, error) {
-	lab, err := m.storage.Get(labName)
+	lab, err := m.Storage.Get(labName)
 	if err == nil {
 		return lab, nil
 	}
@@ -223,8 +223,8 @@ func (m *ManagerSvc) Get(labName string) (*types.Lab, error) {
 func (m *ManagerSvc) List() ([]*types.Lab, error) {
 	var labs []*types.Lab
 
-	err := m.storage.db.View(func(tx *bbolt.Tx) error {
-		b := tx.Bucket(m.storage.labBucket)
+	err := m.Storage.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(m.Storage.labBucket)
 		if b == nil {
 			return fmt.Errorf("labs bucket not found in database")
 		}
@@ -244,7 +244,7 @@ func (m *ManagerSvc) List() ([]*types.Lab, error) {
 
 func (m *ManagerSvc) SyncLabs() error {
 	labsMap := make(map[string]*types.Lab)
-	allServers, err := m.provider.AllServers()
+	allServers, err := m.Provider.AllServers()
 	if err != nil {
 		return err
 	}
@@ -261,8 +261,8 @@ func (m *ManagerSvc) SyncLabs() error {
 		}
 		labsMap[labName] = lab
 	}
-	return m.storage.db.Update(func(tx *bbolt.Tx) error {
-		b := tx.Bucket(m.storage.labBucket)
+	return m.Storage.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(m.Storage.labBucket)
 
 		// Clear existing data
 		if err := b.ForEach(func(k, v []byte) error {
@@ -292,32 +292,32 @@ func (m *ManagerSvc) Delete(labName string, force bool) error {
 	}
 	// delete volumes first
 	for _, volume := range lab.Status.Volumes {
-		m.logger.Debug("deleting volume", "volume", volume.ObjectMeta.Name)
-		status := m.provider.DeleteVolume(volume.ObjectMeta.Name, force)
+		m.Logger.Debug("deleting volume", "volume", volume.ObjectMeta.Name)
+		status := m.Provider.DeleteVolume(volume.ObjectMeta.Name, force)
 		if status.Error != nil {
-			m.logger.Error("failed to delete volume", "volume", volume.ObjectMeta.Name, "error", status.Error)
+			m.Logger.Error("failed to delete volume", "volume", volume.ObjectMeta.Name, "error", status.Error)
 		}
 	}
 	// delete servers
 	for _, server := range lab.Status.Servers {
 		// delete server's ssh keys
 		for _, sshKeyName := range server.Spec.SSHKeyNames {
-			m.logger.Debug("deleting ssh key", "key", sshKeyName)
-			status := m.provider.DeleteSSHKey(sshKeyName, force)
+			m.Logger.Debug("deleting ssh key", "key", sshKeyName)
+			status := m.Provider.DeleteSSHKey(sshKeyName, force)
 			if status.Error != nil {
-				m.logger.Error("failed to delete ssh key", "key", sshKeyName, "error", status.Error)
+				m.Logger.Error("failed to delete ssh key", "key", sshKeyName, "error", status.Error)
 			}
 		}
-		m.logger.Debug("deleting server", "server", server.ObjectMeta.Name)
-		status := m.provider.DeleteServer(server.ObjectMeta.Name, force)
+		m.Logger.Debug("deleting server", "server", server.ObjectMeta.Name)
+		status := m.Provider.DeleteServer(server.ObjectMeta.Name, force)
 		if status.Error != nil {
-			m.logger.Error("failed to delete server", "server", server.ObjectMeta.Name, "error", status.Error)
+			m.Logger.Error("failed to delete server", "server", server.ObjectMeta.Name, "error", status.Error)
 		}
 	}
 
 	// delete lab from storage
-	return m.storage.db.Update(func(tx *bbolt.Tx) error {
-		return tx.Bucket(m.storage.labBucket).Delete([]byte(labName))
+	return m.Storage.db.Update(func(tx *bbolt.Tx) error {
+		return tx.Bucket(m.Storage.labBucket).Delete([]byte(labName))
 	})
 }
 
@@ -357,8 +357,8 @@ func (m *ManagerSvc) syncLabFromCloud(labName string) (*types.Lab, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := m.storage.Save(lab); err != nil {
-		m.logger.Warn("failed to save lab to storage", "error", err)
+	if err := m.Storage.Save(lab); err != nil {
+		m.Logger.Warn("failed to save lab to storage", "error", err)
 	}
 	return lab, nil
 }
@@ -374,7 +374,7 @@ func (m *ManagerSvc) getLabFromCloud(labName string) (*types.Lab, error) {
 		},
 	}
 
-	servers, err := m.provider.ListServers(options.ServerListOpts{
+	servers, err := m.Provider.ListServers(options.ServerListOpts{
 		ListOpts: options.ListOpts{
 			LabelSelector: "lab_name=" + labName,
 		},
@@ -382,7 +382,7 @@ func (m *ManagerSvc) getLabFromCloud(labName string) (*types.Lab, error) {
 	if err != nil {
 		return nil, err
 	}
-	volumes, err := m.provider.ListVolumes(options.VolumeListOpts{
+	volumes, err := m.Provider.ListVolumes(options.VolumeListOpts{
 		ListOpts: options.ListOpts{
 			LabelSelector: "lab_name=" + labName,
 		},

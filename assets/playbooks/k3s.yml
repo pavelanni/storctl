@@ -1,0 +1,114 @@
+---
+- name: Install K3s Control Plane
+  hosts: control_plane
+  become: true
+  tasks:
+    - name: Download K3s install script
+      ansible.builtin.get_url:
+        url: https://get.k3s.io
+        dest: /tmp/k3s_install.sh
+        mode: "0700"
+
+    - name: Install K3s server
+      ansible.builtin.shell: /tmp/k3s_install.sh
+      environment:
+        INSTALL_K3S_EXEC: "server --disable traefik"
+
+    - name: Get node token
+      ansible.builtin.shell: cat /var/lib/rancher/k3s/server/node-token
+      register: node_token
+
+- name: Install K3s Agents
+  hosts: nodes
+  become: true
+  tasks:
+    - name: Download K3s install script
+      ansible.builtin.get_url:
+        url: https://get.k3s.io
+        dest: /tmp/k3s_install.sh
+        mode: "0700"
+
+    - name: Install K3s agent
+      ansible.builtin.shell: /tmp/k3s_install.sh
+      environment:
+        K3S_URL: "https://{{ hostvars[groups['control_plane'][0]]['ansible_host'] }}:6443"
+        K3S_TOKEN: "{{ hostvars[groups['control_plane'][0]]['node_token']['stdout'] }}"
+
+- name: Configure kubectl on control plane
+  hosts: control_plane[0]
+  become: true
+  tasks:
+    - name: Create .kube directory
+      ansible.builtin.file:
+        path: /home/{{ ansible_user }}/.kube
+        state: directory
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Copy kubeconfig to user home
+      ansible.builtin.copy:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: /home/{{ ansible_user }}/.kube/config
+        remote_src: yes
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0600"
+
+    - name: Update kubeconfig server address
+      ansible.builtin.replace:
+        path: /home/{{ ansible_user }}/.kube/config
+        regexp: "https://127.0.0.1:6443"
+        replace: "https://{{ inventory_hostname }}:6443"
+
+    - name: Fetch kubeconfig to Ansible control host
+      ansible.builtin.fetch:
+        src: /home/{{ ansible_user }}/.kube/config
+        dest: "./{{ lab_name }}-kubeconfig"
+        flat: yes
+      become: false
+
+- name: Apply labels and taints to Kubernetes nodes
+  hosts: localhost
+  connection: local
+  become: no
+
+  tasks:
+    - name: Print kubeconfig path
+      debug:
+        var: kubeconfig
+
+    - name: Print deployment name
+      debug:
+        var: lab_name
+
+    - name: Check if kubeconfig file exists
+      stat:
+        path: "{{ kubeconfig }}"
+      register: kubeconfig_file
+
+    - name: Fail if kubeconfig file does not exist
+      fail:
+        msg: "Kubeconfig file not found at {{ kubeconfig }}"
+      when: not kubeconfig_file.stat.exists
+
+    - name: Apply labels to Kubernetes nodes
+      kubernetes.core.k8s:
+        kind: Node
+        name: "{{ item }}"
+        kubeconfig: "{{ kubeconfig }}"
+        definition:
+          api_version: v1
+          metadata:
+            labels:
+              directpv: "yes"
+      loop: "{{ groups['nodes'] }}"
+
+    - name: Apply taint to Kubernetes control plane node
+      kubernetes.core.k8s_taint:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        name: "{{ hostvars[groups['control_plane'][0]]['ansible_host'] }}"
+        taints:
+          - key: "node-role.kubernetes.io/control-plane"
+            effect: "NoSchedule"

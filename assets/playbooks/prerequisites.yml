@@ -1,0 +1,79 @@
+---
+- name: Configure K3s nodes
+  hosts: all
+  become: true
+  tasks:
+    # Common tasks for all nodes
+    - name: Set hostname
+      ansible.builtin.hostname:
+        name: "{{ inventory_hostname }}"
+
+    - name: Update hosts file
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        line: "127.0.0.1 {{ inventory_hostname }}"
+        regexp: '^127\.0\.0\.1'
+
+    - name: Configure resolv.conf
+      ansible.builtin.lineinfile:
+        path: /etc/resolv.conf
+        line: "{{ item }}"
+      loop:
+        - "domain {{ domain_name }}"
+        - "search {{ domain_name }}"
+
+    - name: Preserve hostname in cloud.cfg
+      ansible.builtin.lineinfile:
+        path: /etc/cloud/cloud.cfg
+        line: "preserve_hostname: true"
+
+    # Control plane specific tasks
+    - name: Install base packages
+      ansible.builtin.package:
+        name: "{{ base_packages }}"
+        state: present
+      when: inventory_hostname in groups['control_plane']
+      tags: [packages, control_plane]
+
+    - name: Get latest kubectl version
+      ansible.builtin.command: curl -L -s https://dl.k8s.io/release/stable.txt
+      register: kubectl_stable_version
+      changed_when: false # This task never changes the system
+      when: inventory_hostname in groups['control_plane']
+      tags: [tools, control_plane]
+
+    - name: Download kubectl
+      ansible.builtin.get_url:
+        url: "https://dl.k8s.io/release/{{ kubectl_stable_version.stdout }}/bin/linux/amd64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: "0755"
+      when: inventory_hostname in groups['control_plane']
+      tags: [tools, control_plane]
+
+    - name: Download MinIO client
+      ansible.builtin.get_url:
+        url: https://dl.min.io/client/mc/release/linux-amd64/mc
+        dest: /usr/local/bin/mc
+        mode: "0755"
+      when: inventory_hostname in groups['control_plane']
+      tags: [tools, control_plane]
+
+    - name: Donwload warp tool
+      ansible.builtin.get_url:
+        url: https://github.com/minio/warp/releases/download/v1.0.6/warp_Linux_x86_64.tar.gz
+        dest: /tmp/warp.tar.gz
+      when: inventory_hostname in groups['control_plane']
+      tags: [tools, control_plane]
+
+    - name: Extract warp tool
+      ansible.builtin.unarchive:
+        src: /tmp/warp.tar.gz
+        dest: /tmp/
+        remote_src: true
+      when: inventory_hostname in groups['control_plane']
+      tags: [tools, control_plane]
+
+    - name: Move warp tool to /usr/local/bin
+      ansible.builtin.command: mv /tmp/warp /usr/local/bin/warp
+      when: inventory_hostname in groups['control_plane']
+      tags: [tools, control_plane]

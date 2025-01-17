@@ -22,7 +22,7 @@ func NewDeleteLabCmd() *cobra.Command {
 			}
 
 			// Delete the lab using lab manager
-			if err := labManager.Delete(labName, skipTimeCheck); err != nil {
+			if err := labSvc.Delete(labName, skipTimeCheck); err != nil {
 				return fmt.Errorf("failed to delete lab: %w", err)
 			}
 

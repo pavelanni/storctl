@@ -1,0 +1,27 @@
+- name: Install ingress-nginx
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Add ingress-nginx Helm repo
+      kubernetes.core.helm_repository:
+        name: ingress-nginx
+        repo_url: https://kubernetes.github.io/ingress-nginx
+        kubeconfig: "{{ kubeconfig }}"
+        context: "{{ kubernetes_context }}"
+
+    - name: Install ingress-nginx using Helm
+      kubernetes.core.helm:
+        name: ingress-nginx
+        namespace: ingress-nginx
+        create_namespace: true
+        chart_ref: ingress-nginx/ingress-nginx
+        chart_version: 4.11.4
+        kubeconfig: "{{ kubeconfig }}"
+        context: "{{ kubernetes_context }}"
+        values:
+          controller:
+            replicaCount: 1
+            ingressClassResource:
+              default: true
+        wait: true

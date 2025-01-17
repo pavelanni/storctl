@@ -1,0 +1,57 @@
+- name: Install cert-manager and configure HTTP-01 ClusterIssuer
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Add Jetstack Helm repo
+      kubernetes.core.helm_repository:
+        name: jetstack
+        repo_url: https://charts.jetstack.io
+
+    - name: Install cert-manager using Helm
+      kubernetes.core.helm:
+        name: cert-manager
+        chart_ref: jetstack/cert-manager
+        release_namespace: cert-manager
+        create_namespace: true
+        kubeconfig: "{{ kubeconfig }}"
+        values:
+          crds:
+            enabled: true
+        wait: true
+        context: "{{ kubernetes_context }}"
+
+    - name: Wait for cert-manager webhook to be ready
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: cert-manager-webhook
+        namespace: cert-manager
+        kubeconfig: "{{ kubeconfig }}"
+        wait: true
+        wait_timeout: 300
+        wait_condition:
+          type: Available
+          status: "True"
+        context: "{{ kubernetes_context }}"
+
+    - name: Create ClusterIssuer for Let's Encrypt with HTTP-01 challenge for {{ letsencrypt_environment }} environment
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        definition:
+          apiVersion: cert-manager.io/v1
+          kind: ClusterIssuer
+          metadata:
+            name: "letsencrypt-{{ letsencrypt_environment }}"
+          spec:
+            acme:
+              email: "{{ email }}"
+              server: "{{ 'https://acme-v02.api.letsencrypt.org/directory' if letsencrypt_environment == 'prod' else 'https://acme-staging-v02.api.letsencrypt.org/directory' }}"
+              privateKeySecretRef:
+                name: "letsencrypt-{{ letsencrypt_environment }}"
+              solvers:
+                - http01:
+                    ingress:
+                      class: nginx
+        context: "{{ kubernetes_context }}"

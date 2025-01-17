@@ -1,0 +1,10 @@
+- name: Deploy aistor ingress
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Create aistor ingress
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        template: aistor-ingress.yaml.j2

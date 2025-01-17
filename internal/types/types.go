@@ -23,7 +23,7 @@ type Server struct {
 
 // Server represents a generic server across providers
 type ServerSpec struct {
-	ServerType  string            `json:"serverType"`
+	ServerType  string            `json:"type"`
 	Image       string            `json:"image"`
 	Location    string            `json:"location"`
 	Provider    string            `json:"provider"`
@@ -111,7 +111,7 @@ type LabStatus struct {
 
 type LabServerSpec struct {
 	Name       string `json:"name"`
-	ServerType string `json:"serverType"`
+	ServerType string `json:"type"`
 	Image      string `json:"image"`
 }
 
@@ -181,6 +181,7 @@ type PublicNet struct {
 	IPv4 *struct {
 		IP string `json:"ip"`
 	} `json:"ipv4"`
+	FQDN string `json:"fqdn"`
 }
 
 type IPv4 struct {

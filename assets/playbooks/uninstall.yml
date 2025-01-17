@@ -1,0 +1,26 @@
+---
+- name: Uninstall K3s from all nodes
+  hosts: all
+  become: true
+  tasks:
+    - name: Run k3s uninstall script
+      shell: |
+        if [ -f /usr/local/bin/k3s-uninstall.sh ]; then
+          /usr/local/bin/k3s-uninstall.sh
+        fi
+        if [ -f /usr/local/bin/k3s-agent-uninstall.sh ]; then
+          /usr/local/bin/k3s-agent-uninstall.sh
+        fi
+      ignore_errors: true
+
+    - name: Remove k3s directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /etc/rancher/k3s
+        - /var/lib/rancher/k3s
+        - /var/lib/kubelet
+        - /etc/kubernetes
+        - /root/.kube
+        - /home/{{ ansible_user }}/.kube

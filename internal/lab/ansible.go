@@ -2,7 +2,9 @@ package lab
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -62,12 +64,13 @@ func (m *ManagerSvc) CreateAnsibleInventoryFile(lab *types.Lab) error {
 		Hosts: make(map[string]Host),
 	}
 	for _, server := range lab.Status.Servers {
+		m.Logger.Debug("Adding to Ansible inventory file", "server", server.Status.PublicNet.FQDN, "public_ip", server.Status.PublicNet.IPv4.IP)
 		if strings.HasSuffix(server.ObjectMeta.Name, "cp") {
-			controlPlaneGroup.Hosts[server.ObjectMeta.Name] = Host{
+			controlPlaneGroup.Hosts[server.Status.PublicNet.FQDN] = Host{
 				AnsibleHost: server.Status.PublicNet.IPv4.IP,
 			}
 		} else {
-			workerGroup.Hosts[server.ObjectMeta.Name] = Host{
+			workerGroup.Hosts[server.Status.PublicNet.FQDN] = Host{
 				AnsibleHost: server.Status.PublicNet.IPv4.IP,
 			}
 		}
@@ -80,5 +83,56 @@ func (m *ManagerSvc) CreateAnsibleInventoryFile(lab *types.Lab) error {
 	if err != nil {
 		return err
 	}
+	m.Logger.Info("Creating Ansible inventory file", "file", ansibleInventoryFile)
+	lab.Spec.Ansible.Inventory = ansibleInventoryFile
+	err = m.Storage.Save(lab)
+	if err != nil {
+		return err
+	}
 	return os.WriteFile(ansibleInventoryFile, jsonData, 0644)
+}
+
+func (m *ManagerSvc) RunAnsiblePlaybook(lab *types.Lab) error {
+	if lab.Spec.Ansible.Playbook == "" {
+		return fmt.Errorf("ansible playbook not set")
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	ansiblePlaybookFile := filepath.Join(homeDir,
+		config.DefaultConfigDir,
+		config.DefaultAnsibleDir,
+		"playbooks",
+		lab.Spec.Ansible.Playbook)
+	ansibleInventoryFile := lab.Spec.Ansible.Inventory
+	m.Logger.Info("Running Ansible playbook", "playbook", ansiblePlaybookFile, "inventory", ansibleInventoryFile)
+	if err := checkAnsibleAvailable(); err != nil {
+		return err
+	}
+	args := []string{
+		"-i", ansibleInventoryFile,
+		ansiblePlaybookFile,
+	}
+
+	lab.Spec.Ansible.Playbook = ansiblePlaybookFile
+	err = m.Storage.Save(lab)
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command("ansible-playbook", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
+}
+
+// checkAnsibleAvailable verifies that ansible-playbook is installed
+func checkAnsibleAvailable() error {
+	_, err := exec.LookPath("ansible-playbook")
+	if err != nil {
+		return fmt.Errorf("ansible-playbook not found in PATH: %w", err)
+	}
+	return nil
 }
