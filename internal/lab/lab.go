@@ -288,6 +288,10 @@ func (m *ManagerSvc) Delete(labName string, force bool) error {
 	if err != nil {
 		return err
 	}
+	// Check if the lab is ready for deletion
+	if !lab.Status.DeleteAfter.Before(time.Now().UTC()) && !force {
+		return fmt.Errorf("lab %s is not ready for deletion", labName)
+	}
 	// delete volumes first
 	for _, volume := range lab.Status.Volumes {
 		m.Logger.Debug("deleting volume", "volume", volume.ObjectMeta.Name)

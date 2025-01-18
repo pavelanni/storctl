@@ -31,7 +31,7 @@
     - name: Install K3s agent
       ansible.builtin.shell: /tmp/k3s_install.sh
       environment:
-        K3S_URL: "https://{{ hostvars[groups['control_plane'][0]]['ansible_host'] }}:6443"
+        K3S_URL: "https://{{ hostvars[groups['control_plane'][0]]['inventory_hostname'] }}:6443"
         K3S_TOKEN: "{{ hostvars[groups['control_plane'][0]]['node_token']['stdout'] }}"
 
 - name: Configure kubectl on control plane
@@ -108,7 +108,7 @@
       kubernetes.core.k8s_taint:
         kubeconfig: "{{ kubeconfig }}"
         state: present
-        name: "{{ hostvars[groups['control_plane'][0]]['ansible_host'] }}"
+        name: "{{ hostvars[groups['control_plane'][0]]['inventory_hostname'] }}"
         taints:
           - key: "node-role.kubernetes.io/control-plane"
             effect: "NoSchedule"

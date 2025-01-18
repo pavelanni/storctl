@@ -110,6 +110,9 @@ func createTemplates(overwrite bool) error {
 		if err != nil {
 			return fmt.Errorf("error creating templates directory: %w", err)
 		}
+		fmt.Printf("Templates directory created at %s\n", templatesDir)
+	} else {
+		fmt.Printf("Templates directory already exists at %s\n", templatesDir)
 	}
 	return initializeFiles(assets.TemplateFiles, "templates", templatesDir, overwrite)
 }
@@ -132,6 +135,9 @@ func createPlaybooks(overwrite bool) error {
 		if err != nil {
 			return fmt.Errorf("error creating playbooks directory: %w", err)
 		}
+		fmt.Printf("Playbooks directory created at %s\n", playbooksDir)
+	} else {
+		fmt.Printf("Playbooks directory already exists at %s\n", playbooksDir)
 	}
 	return initializeFiles(assets.PlaybookFiles, "playbooks", playbooksDir, overwrite)
 }
@@ -154,8 +160,10 @@ func createDefaultKeysDir() error {
 		if err != nil {
 			return fmt.Errorf("error creating default keys directory: %w", err)
 		}
+		fmt.Printf("Default keys directory created at %s\n", defaultKeysDir)
+	} else {
+		fmt.Printf("Default keys directory already exists at %s\n", defaultKeysDir)
 	}
-	fmt.Printf("Default keys directory created at %s\n", defaultKeysDir)
 	return nil
 }
 
@@ -177,8 +185,10 @@ func createDefaultLabStorage() error {
 		if err != nil {
 			return fmt.Errorf("error writing default lab storage file: %w", err)
 		}
+		fmt.Printf("Default lab storage file created at %s\n", labStorageFile)
+	} else {
+		fmt.Printf("Default lab storage file already exists at %s\n", labStorageFile)
 	}
-	fmt.Printf("Default lab storage file created at %s\n", labStorageFile)
 	return nil
 }
 
@@ -203,7 +213,6 @@ func initializeFiles(sourceFS embed.FS, sourceDir, targetDir string, overwrite b
 
 		relPath := path[len(sourceDir+"/"):]
 		targetPath := filepath.Join(targetDir, relPath)
-		fmt.Printf("Extracting %s to %s\n", path, targetPath)
 
 		// Ensure subdirectories exist
 		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
@@ -216,6 +225,7 @@ func initializeFiles(sourceFS embed.FS, sourceDir, targetDir string, overwrite b
 				return nil // Skip if file exists and overwrite is false
 			}
 		}
+		fmt.Printf("Extracting %s to %s\n", path, targetPath)
 		return os.WriteFile(targetPath, content, 0644)
 	})
 }
