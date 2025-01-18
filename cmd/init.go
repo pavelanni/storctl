@@ -14,15 +14,17 @@ import (
 )
 
 func NewInitCmd() *cobra.Command {
-	return &cobra.Command{
+	var overwrite bool
+	cmd := &cobra.Command{
 		Use:   "init",
 		Short: fmt.Sprintf("Initialize %s", config.ToolName),
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println("Initializing...")
 			if err := createConfig(); err != nil {
 				return fmt.Errorf("error creating config: %w", err)
 			}
-			if err := createTemplates(); err != nil {
+			if err := createTemplates(overwrite); err != nil {
 				return fmt.Errorf("error creating templates: %w", err)
 			}
 			if err := createDefaultKeysDir(); err != nil {
@@ -31,12 +33,14 @@ func NewInitCmd() *cobra.Command {
 			if err := createDefaultLabStorage(); err != nil {
 				return fmt.Errorf("error creating default lab storage: %w", err)
 			}
-			if err := createPlaybooks(); err != nil {
+			if err := createPlaybooks(overwrite); err != nil {
 				return fmt.Errorf("error creating playbooks: %w", err)
 			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVarP(&overwrite, "overwrite", "o", false, "Overwrite existing templates and playbooks")
+	return cmd
 }
 
 func createConfig() error {
@@ -87,7 +91,7 @@ func createConfig() error {
 	return nil
 }
 
-func createTemplates() error {
+func createTemplates(overwrite bool) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("error getting home directory: %w", err)
@@ -107,10 +111,10 @@ func createTemplates() error {
 			return fmt.Errorf("error creating templates directory: %w", err)
 		}
 	}
-	return initializeFiles(assets.TemplateFiles, "templates", templatesDir, false)
+	return initializeFiles(assets.TemplateFiles, "templates", templatesDir, overwrite)
 }
 
-func createPlaybooks() error {
+func createPlaybooks(overwrite bool) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("error getting home directory: %w", err)
@@ -129,7 +133,7 @@ func createPlaybooks() error {
 			return fmt.Errorf("error creating playbooks directory: %w", err)
 		}
 	}
-	return initializeFiles(assets.PlaybookFiles, "playbooks", playbooksDir, false)
+	return initializeFiles(assets.PlaybookFiles, "playbooks", playbooksDir, overwrite)
 }
 
 func createDefaultKeysDir() error {
@@ -199,6 +203,7 @@ func initializeFiles(sourceFS embed.FS, sourceDir, targetDir string, overwrite b
 
 		relPath := path[len(sourceDir+"/"):]
 		targetPath := filepath.Join(targetDir, relPath)
+		fmt.Printf("Extracting %s to %s\n", path, targetPath)
 
 		// Ensure subdirectories exist
 		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {

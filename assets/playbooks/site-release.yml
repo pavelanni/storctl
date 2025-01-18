@@ -1,7 +1,14 @@
 ---
-- import_playbook: prerequisites.yml
-- import_playbook: k3s.yml
-- import_playbook: cert-manager.yml
-- import_playbook: ingress-nginx.yml
-- import_playbook: directpv.yml
-- import_playbook: aistor-release.yml
+- name: Install prerequisites
+  import_playbook: prerequisites.yml
+- name: Install k3s
+  import_playbook: k3s.yml
+- name: Install cert-manager
+  import_playbook: cert-manager.yml
+- name: Install ingress-nginx
+  import_playbook: ingress-nginx.yml
+- name: Install and initialize directpv
+  import_playbook: directpv.yml
+- name: Install AIStor
+  import_playbook: aistor-release.yml
+
