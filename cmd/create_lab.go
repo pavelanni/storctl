@@ -69,7 +69,12 @@ func createLab(lab *types.Lab) (*types.Lab, error) {
 	}
 	lab.ObjectMeta.Labels["delete_after"] = timeutil.FormatDeleteAfter(time.Now().Add(duration))
 
-	if err := labSvc.Create(lab); err != nil { // labSvc is a package variable created in root.go
+	fmt.Printf("Lab %s: Creating lab resources on the cloud...\n", lab.ObjectMeta.Name)
+	labSvc.Logger.Info("Creating new lab",
+		"name", lab.ObjectMeta.Name,
+		"nodes", len(lab.Spec.Servers))
+	labSvc.Logger.Debug("Lab configuration", "lab", lab) // Detailed config for debugging
+	if err := labSvc.Create(lab); err != nil {           // labSvc is a package variable created in root.go
 		return nil, err
 	}
 	// get the lab again to get the status
@@ -78,35 +83,27 @@ func createLab(lab *types.Lab) (*types.Lab, error) {
 		return nil, err
 	}
 	lab.Status = labUpdated.Status
-	fmt.Printf("Creating lab %s...\n", lab.ObjectMeta.Name)
-	labSvc.Logger.Info("Creating new lab",
-		"name", lab.ObjectMeta.Name,
-		"nodes", len(lab.Spec.Servers))
-	labSvc.Logger.Debug("Lab configuration", "lab", lab) // Detailed config for debugging
 
-	if lab.Spec.Ansible.Playbook != "" {
-		fmt.Printf("Running Ansible playbook %s...\n", lab.Spec.Ansible.Playbook)
-	} else {
-		fmt.Println("No playbook specified. Skipping Ansible configuration.")
-	}
-
+	fmt.Printf("Lab %s: Creating DNS records...\n", lab.ObjectMeta.Name)
 	if err := addDNSRecords(lab); err != nil {
 		return nil, err
 	}
-	// Create ansible inventory file
+	fmt.Printf("Lab %s: Creating ansible inventory file...\n", lab.ObjectMeta.Name)
 	err = labSvc.CreateAnsibleInventoryFile(lab)
 	if err != nil {
 		return nil, err
 	}
-	// Run ansible playbook
+	if lab.Spec.Ansible.Playbook != "" {
+		fmt.Printf("Lab %s: Running Ansible playbook %s...\n", lab.ObjectMeta.Name, lab.Spec.Ansible.Playbook)
+	} else {
+		fmt.Printf("Lab %s: No playbook specified. Skipping Ansible configuration.\n", lab.ObjectMeta.Name)
+	}
+
 	if lab.Spec.Ansible.Playbook != "" {
 		err = labSvc.RunAnsiblePlaybook(lab)
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		labSvc.Logger.Debug("No playbook specified", "lab", lab)
-		fmt.Println("No playbook specified. Skipping Ansible playbook.")
 	}
 	return lab, nil
 }

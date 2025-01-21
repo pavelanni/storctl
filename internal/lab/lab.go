@@ -97,6 +97,7 @@ func (m *ManagerSvc) Create(lab *types.Lab) error {
 			Name: config.DefaultAdminKeyName,
 		},
 	}
+	fmt.Printf("Creating lab admin key %s...\n", labAdminKeyName)
 	labAdminPublicKey, err := m.SshManager.CreateLocalKeyPair(labAdminKeyName)
 	if err != nil {
 		return err
@@ -115,6 +116,11 @@ func (m *ManagerSvc) Create(lab *types.Lab) error {
 		ttl = config.DefaultTTL
 	}
 	// Create servers
+	serversString := ""
+	for _, serverSpec := range lab.Spec.Servers {
+		serversString += serverSpec.Name + ", "
+	}
+	fmt.Printf("Creating %d servers: %s\n", len(lab.Spec.Servers), serversString)
 	specServers := lab.Spec.Servers
 	servers := make([]*types.Server, 0)
 	for _, serverSpec := range specServers {
@@ -135,6 +141,7 @@ func (m *ManagerSvc) Create(lab *types.Lab) error {
 				Image:      serverSpec.Image,
 			},
 		}
+		fmt.Printf("Creating server %s...\n", s.ObjectMeta.Name)
 		result, err := m.Provider.CreateServer(options.ServerCreateOpts{
 			Name:     s.ObjectMeta.Name,
 			Type:     s.Spec.ServerType,
@@ -152,6 +159,7 @@ func (m *ManagerSvc) Create(lab *types.Lab) error {
 	}
 
 	// Wait for servers to be ready
+	fmt.Println("Waiting for servers to be ready...")
 	timeout := 30 * time.Minute
 	attempts := 20
 	results, err := serverchecker.CheckServers(servers, m.Logger, timeout, attempts)
@@ -164,8 +172,13 @@ func (m *ManagerSvc) Create(lab *types.Lab) error {
 			return fmt.Errorf("server %s not ready", result.Server.ObjectMeta.Name)
 		}
 	}
-
+	fmt.Println("Servers are ready")
 	// Create volumes
+	volumesString := ""
+	for _, volumeSpec := range lab.Spec.Volumes {
+		volumesString += volumeSpec.Name + ", "
+	}
+	fmt.Printf("Creating %d volumes: %s\n", len(lab.Spec.Volumes), volumesString)
 	volumes := lab.Spec.Volumes
 	for _, volumeSpec := range volumes {
 		if !volumeSpec.Automount { // if not specified, default to false
@@ -190,6 +203,7 @@ func (m *ManagerSvc) Create(lab *types.Lab) error {
 				Format:     volumeSpec.Format,
 			},
 		}
+		fmt.Printf("Creating volume %s...\n", v.ObjectMeta.Name)
 		_, err := m.Provider.CreateVolume(options.VolumeCreateOpts{
 			Name:       v.ObjectMeta.Name,
 			Size:       v.Spec.Size,
