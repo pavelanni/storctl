@@ -3,14 +3,21 @@ package options
 import "github.com/pavelanni/storctl/internal/types"
 
 type ServerCreateOpts struct {
-	Name     string
-	Type     string          // Server type in cloud provider
-	Image    string          // OS image
-	Location string          // Datacenter/location
-	Provider string          // Cloud provider
-	SSHKeys  []*types.SSHKey // SSH keys
-	Labels   map[string]string
-	UserData string // cloud-init user data
+	Name            string
+	Type            string          // Server type in cloud provider
+	Image           string          // OS image
+	Location        string          // Datacenter/location
+	Provider        string          // Cloud provider
+	SSHKeys         []*types.SSHKey // SSH keys
+	Labels          map[string]string
+	UserData        string           // cloud-init user data
+	AdditionalDisks []AdditionalDisk // additional disks for Lima VMs
+}
+
+type AdditionalDisk struct {
+	Name   string `yaml:"name"`
+	Format bool   `yaml:"format"`
+	FsType string `yaml:"fsType,omitempty"`
 }
 
 type VolumeCreateOpts struct {

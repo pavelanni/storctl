@@ -51,6 +51,9 @@ const (
 
 	// DefaultAnsibleExtraVarsFile is the default ansible extra vars file
 	DefaultAnsibleExtraVarsFile = "extra_vars.yml"
+
+	// DefaultLimaDir is the default directory for storing lima VM configs
+	DefaultLimaDir = "lima"
 )
 
 // Provider related constants
