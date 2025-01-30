@@ -1,11 +1,14 @@
 package lima
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/pavelanni/storctl/internal/config"
 	"github.com/pavelanni/storctl/internal/provider/options"
@@ -15,7 +18,7 @@ import (
 
 var limactlArgs = []string{"--tty=false"}
 
-var serverTypes = map[string]Server{
+var serverTypes = map[string]ConfigServer{
 	"cx22": {
 		CPUs:   2,
 		Memory: "4GB",
@@ -49,21 +52,49 @@ var serverTypes = map[string]Server{
 }
 
 func (p *LimaProvider) CreateServer(opts options.ServerCreateOpts) (*types.Server, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	if opts.Name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+	if opts.Type == "" {
+		return nil, fmt.Errorf("type is required")
+	}
+	if opts.Image == "" {
+		return nil, fmt.Errorf("image is required")
+	}
+	checkServer, err := p.GetServer(opts.Name)
+	if err != nil {
+		if !strings.Contains(err.Error(), "not found") {
+			return nil, fmt.Errorf("checking server: %w", err)
+		}
+	}
+	if checkServer != nil {
+		fmt.Println("server already exists", checkServer.ObjectMeta.Name)
+		return nil, fmt.Errorf("server %s already exists", checkServer.ObjectMeta.Name)
+	}
 	// Create a Lima config file in the DefaultLimaDir using the provided opts
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
 	}
 	limaDir := filepath.Join(homeDir, config.DefaultConfigDir, config.DefaultLimaDir)
+	if _, err := os.Stat(limaDir); os.IsNotExist(err) {
+		err = os.MkdirAll(limaDir, 0755)
+		if err != nil {
+			return nil, fmt.Errorf("error creating Lima directory: %v", err)
+		}
+	}
 	limaConfigFile := filepath.Join(limaDir, opts.Name+".yaml")
 	server, ok := serverTypes[opts.Type]
 	if !ok {
 		return nil, fmt.Errorf("invalid server type: %s", opts.Type)
 	}
 	if opts.AdditionalDisks != nil {
-		additionalDisks := []AdditionalDisk{}
+		additionalDisks := []ConfigAdditionalDisk{}
 		for _, disk := range opts.AdditionalDisks {
-			additionalDisks = append(additionalDisks, AdditionalDisk{
+			additionalDisks = append(additionalDisks, ConfigAdditionalDisk{
 				Name:   disk.Name,
 				Format: disk.Format,
 				FsType: disk.FsType,
@@ -80,34 +111,115 @@ func (p *LimaProvider) CreateServer(opts options.ServerCreateOpts) (*types.Serve
 		return nil, fmt.Errorf("error writing config for %s: %v", opts.Name, err)
 	}
 
-	if err := createVM(opts.Name, limaConfigFile); err != nil {
+	if err := createVM(ctx, opts.Name, limaConfigFile); err != nil {
 		return nil, fmt.Errorf("error creating VM for %s: %v", opts.Name, err)
 	}
 
-	return nil, nil
+	newServer, err := p.GetServer(opts.Name)
+	if err != nil {
+		return nil, fmt.Errorf("error getting server for %s: %v", opts.Name, err)
+	}
+	return newServer, nil
 }
 
 func (p *LimaProvider) GetServer(name string) (*types.Server, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+
+	cmd := exec.CommandContext(ctx, "limactl", "list", "--json", name)
+	output, err := cmd.Output()
+	if err != nil {
+		// If there's an error but output is empty, it's likely because the server doesn't exist
+		if len(strings.TrimSpace(string(output))) == 0 {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("listing servers: %w", err)
+	}
+
+	// Empty output also means no server
+	if len(strings.TrimSpace(string(output))) == 0 {
+		return nil, nil
+	}
+
+	// Parse the output
+	var limaServer Instance
+	for _, line := range strings.Split(string(output), "\n") {
+		if line == "" {
+			continue
+		}
+		if err := json.Unmarshal([]byte(line), &limaServer); err != nil {
+			return nil, fmt.Errorf("unmarshalling server: %s: %w", line, err)
+		}
+		return mapServer(limaServer), nil
+	}
+
+	// No valid data found
 	return nil, nil
 }
 
 func (p *LimaProvider) ListServers(opts options.ServerListOpts) ([]*types.Server, error) {
-	return nil, nil
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "limactl", "server", "list", "--json")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("listing servers: %w", err)
+	}
+	servers := []*types.Server{}
+	for _, line := range strings.Split(string(output), "\n") {
+		if line == "" {
+			continue
+		}
+		limaServer := Instance{}
+		err := json.Unmarshal([]byte(line), &limaServer)
+		if err != nil {
+			return nil, fmt.Errorf("unmarshalling server: %w", err)
+		}
+		servers = append(servers, mapServer(limaServer))
+	}
+	return servers, nil
 }
 
 func (p *LimaProvider) AllServers() ([]*types.Server, error) {
-	return nil, nil
+	servers, err := p.ListServers(options.ServerListOpts{})
+	if err != nil {
+		return nil, fmt.Errorf("listing servers: %w", err)
+	}
+	return servers, nil
 }
 
 func (p *LimaProvider) DeleteServer(name string, force bool) *types.ServerDeleteStatus {
-	return nil
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	if name == "" {
+		return &types.ServerDeleteStatus{
+			Deleted: false,
+			Error:   fmt.Errorf("name is required"),
+		}
+	}
+	err := exec.CommandContext(ctx, "limactl", "delete", name, "--force").Run()
+	if err != nil {
+		return &types.ServerDeleteStatus{
+			Deleted: false,
+			Error:   fmt.Errorf("deleting server: %w", err),
+		}
+	}
+	return &types.ServerDeleteStatus{
+		Deleted: true,
+	}
 }
 
 func (p *LimaProvider) ServerToCreateOpts(server *types.Server) (options.ServerCreateOpts, error) {
 	return options.ServerCreateOpts{}, nil
 }
 
-func createLimaConfig(server Server) LimaConfig {
+func createLimaConfig(server ConfigServer) LimaConfig {
 	// Parse Ubuntu version from image string
 	version := strings.TrimPrefix(server.Image, "ubuntu-")
 
@@ -118,14 +230,14 @@ func createLimaConfig(server Server) LimaConfig {
 		Disk:   server.Disk,
 		Arch:   getArchForArch(server.Arch),
 		OS:     "Linux",
-		Images: []Image{
+		Images: []ConfigImage{
 			{
 				Location: fmt.Sprintf("https://cloud-images.ubuntu.com/releases/%s/release/ubuntu-%s-server-cloudimg-%s.img",
 					version, version, getArchForImage(server.Arch)),
 				Arch: getArchForArch(server.Arch),
 			},
 		},
-		Networks: []Network{
+		Networks: []ConfigNetwork{
 			{
 				LimaNetwork: "shared",
 			},
@@ -136,24 +248,23 @@ func createLimaConfig(server Server) LimaConfig {
 	return limaConfig
 }
 
-func createVM(name, configPath string) error {
-	listCmd := exec.Command("limactl", "list")
-	output, err := listCmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("listing VMs: %w", err)
+func createVM(ctx context.Context, name, configPath string) error {
+	if name == "" {
+		return fmt.Errorf("name is required")
+	}
+	if configPath == "" {
+		return fmt.Errorf("configPath is required")
 	}
 
-	if strings.Contains(string(output), name) {
-		fmt.Printf("VM %s already exists\n", name)
-		return nil
-	}
-
-	createCmd := exec.Command("limactl", append(limactlArgs, "start", "--name", name, configPath)...)
+	createCmd := exec.CommandContext(ctx, "limactl", append(limactlArgs, "start", "--name", name, configPath)...)
 	createCmd.Stdout = os.Stdout
 	createCmd.Stderr = os.Stderr
 
 	fmt.Printf("Creating VM %s...\n", name)
 	if err := createCmd.Run(); err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("timeout while creating VM: %w", err)
+		}
 		return fmt.Errorf("creating VM: %w", err)
 	}
 
@@ -173,6 +284,17 @@ func writeConfig(filename string, config LimaConfig) error {
 	}
 
 	return nil
+}
+
+func mapServer(server Instance) *types.Server {
+	return &types.Server{
+		ObjectMeta: types.ObjectMeta{
+			Name: server.Name,
+		},
+		Spec: types.ServerSpec{
+			Image: server.Config.Images[0].Location,
+		},
+	}
 }
 
 // Ubuntu images use arm64 and amd64, but Lima uses aarch64 and x86_64

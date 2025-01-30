@@ -69,7 +69,7 @@ func createLab(lab *types.Lab) (*types.Lab, error) {
 	}
 	lab.ObjectMeta.Labels["delete_after"] = timeutil.FormatDeleteAfter(time.Now().Add(duration))
 
-	fmt.Printf("Lab %s: Creating lab resources on the cloud...\n", lab.ObjectMeta.Name)
+	fmt.Printf("Lab %s: Creating lab resources...\n", lab.ObjectMeta.Name)
 	labSvc.Logger.Info("Creating new lab",
 		"name", lab.ObjectMeta.Name,
 		"nodes", len(lab.Spec.Servers))

@@ -18,6 +18,7 @@ func NewCreateServerCmd() *cobra.Command {
 		sshKeyNames []string
 		serverType  string
 		image       string
+		provider    string
 		location    string
 		ttl         string
 		labels      map[string]string
@@ -58,6 +59,7 @@ func NewCreateServerCmd() *cobra.Command {
 	cmd.Flags().StringSliceVar(&sshKeyNames, "ssh-keys", []string{}, "SSH key names to use; if not provided, the admin key will be created")
 	cmd.Flags().StringVar(&serverType, "type", config.DefaultServerType, "Server type")
 	cmd.Flags().StringVar(&image, "image", config.DefaultImage, "Server image")
+	cmd.Flags().StringVar(&provider, "provider", config.DefaultProvider, "Server provider")
 	cmd.Flags().StringVar(&location, "location", config.DefaultLocation, "Server location")
 	cmd.Flags().StringVar(&ttl, "ttl", config.DefaultTTL, "Server TTL")
 	cmd.Flags().StringToStringVar(&labels, "labels", map[string]string{}, "Server labels")
@@ -74,10 +76,11 @@ func createServer(server *types.Server) (*types.Server, error) {
 		server.Spec.SSHKeyNames = []string{serverKeyName}
 	}
 	// Access fields using map syntax
-	fmt.Printf("Creating server %s with type %s, image %s, location %s, ssh keys %v\n",
+	fmt.Printf("Creating server %s with type %s, image %s, provider %s, location %s, ssh keys %v\n",
 		server.ObjectMeta.Name,
 		server.Spec.ServerType,
 		server.Spec.Image,
+		server.Spec.Provider,
 		server.Spec.Location,
 		server.Spec.SSHKeyNames)
 
