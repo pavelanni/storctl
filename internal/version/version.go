@@ -1,8 +1,10 @@
 package version
 
+import "runtime"
+
 var (
 	Version   = "dev"
 	Commit    = "none"
 	Date      = "unknown"
-	GoVersion = "unknown"
+	GoVersion = runtime.Version()
 )
