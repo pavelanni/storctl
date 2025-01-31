@@ -23,7 +23,7 @@ builds:
   - -X {{ .ModulePath }}/internal/version.Version={{.Version}}
   - -X {{ .ModulePath }}/internal/version.Commit={{.Commit}}
   - -X {{ .ModulePath }}/internal/version.Date={{.Date}}
-  - -X {{ .ModulePath }}/internal/version.GoVersion={{.Env.GOVERSION}}
+  - -X {{ .ModulePath }}/internal/version.GoVersion={{.Runtime.GOVERSION}}
   goos:
   - linux
   - darwin
