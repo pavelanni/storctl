@@ -91,7 +91,8 @@ func (p *LimaProvider) CreateServer(opts options.ServerCreateOpts) (*types.Serve
 	if !ok {
 		return nil, fmt.Errorf("invalid server type: %s", opts.Type)
 	}
-	if opts.AdditionalDisks != nil {
+	if len(opts.AdditionalDisks) > 0 {
+		fmt.Printf("Additional disks in Lima provider from opts: %v\n", opts.AdditionalDisks)
 		additionalDisks := []ConfigAdditionalDisk{}
 		for _, disk := range opts.AdditionalDisks {
 			additionalDisks = append(additionalDisks, ConfigAdditionalDisk{
@@ -102,6 +103,8 @@ func (p *LimaProvider) CreateServer(opts options.ServerCreateOpts) (*types.Serve
 		}
 		server.AdditionalDisks = additionalDisks
 	}
+	// DEBUG
+	fmt.Printf("Additional disks in Lima provider assigned to server: %v\n", server.AdditionalDisks)
 	arch := getArchForArch(p.arch)
 	server.Name = opts.Name
 	server.Image = opts.Image
@@ -154,7 +157,11 @@ func (p *LimaProvider) GetServer(name string) (*types.Server, error) {
 		if err := json.Unmarshal([]byte(line), &limaServer); err != nil {
 			return nil, fmt.Errorf("unmarshalling server: %s: %w", line, err)
 		}
-		return mapServer(limaServer), nil
+		server, err := mapServer(limaServer)
+		if err != nil {
+			return nil, fmt.Errorf("error mapping server: %w", err)
+		}
+		return server, nil
 	}
 
 	// No valid data found
@@ -165,7 +172,13 @@ func (p *LimaProvider) ListServers(opts options.ServerListOpts) ([]*types.Server
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "limactl", "server", "list", "--json")
+	var labName string
+
+	if opts.ListOpts.LabelSelector != "" {
+		label := opts.ListOpts.LabelSelector
+		labName = strings.TrimPrefix(label, "lab_name=")
+	}
+	cmd := exec.CommandContext(ctx, "limactl", "list", "--json")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("listing servers: %w", err)
@@ -180,7 +193,13 @@ func (p *LimaProvider) ListServers(opts options.ServerListOpts) ([]*types.Server
 		if err != nil {
 			return nil, fmt.Errorf("unmarshalling server: %w", err)
 		}
-		servers = append(servers, mapServer(limaServer))
+		if strings.HasPrefix(limaServer.Name, labName) {
+			server, err := mapServer(limaServer)
+			if err != nil {
+				return nil, fmt.Errorf("error mapping server: %w", err)
+			}
+			servers = append(servers, server)
+		}
 	}
 	return servers, nil
 }
@@ -216,7 +235,22 @@ func (p *LimaProvider) DeleteServer(name string, force bool) *types.ServerDelete
 }
 
 func (p *LimaProvider) ServerToCreateOpts(server *types.Server) (options.ServerCreateOpts, error) {
-	return options.ServerCreateOpts{}, nil
+	sshKeys, err := p.KeyNamesToSSHKeys(server.Spec.SSHKeyNames, options.SSHKeyCreateOpts{
+		Labels: server.ObjectMeta.Labels,
+	})
+	if err != nil {
+		return options.ServerCreateOpts{}, err
+	}
+	cloudInitUserData := fmt.Sprintf(config.DefaultCloudInitUserData, sshKeys[0].Spec.PublicKey)
+	return options.ServerCreateOpts{
+		Name:     server.ObjectMeta.Name,
+		Type:     server.Spec.ServerType,
+		Image:    server.Spec.Image,
+		Location: server.Spec.Location,
+		Provider: "lima",
+		SSHKeys:  sshKeys,
+		UserData: cloudInitUserData,
+	}, nil
 }
 
 func createLimaConfig(server ConfigServer) LimaConfig {
@@ -286,7 +320,11 @@ func writeConfig(filename string, config LimaConfig) error {
 	return nil
 }
 
-func mapServer(server Instance) *types.Server {
+func mapServer(server Instance) (*types.Server, error) {
+	ip, err := getIPFromVM(server.Name)
+	if err != nil {
+		return nil, fmt.Errorf("error getting IP address for %s: %v", server.Name, err)
+	}
 	return &types.Server{
 		ObjectMeta: types.ObjectMeta{
 			Name: server.Name,
@@ -294,7 +332,17 @@ func mapServer(server Instance) *types.Server {
 		Spec: types.ServerSpec{
 			Image: server.Config.Images[0].Location,
 		},
-	}
+		Status: types.ServerStatus{
+			PublicNet: &types.PublicNet{
+				FQDN: server.Name,
+				IPv4: &struct {
+					IP string `json:"ip"`
+				}{
+					IP: ip,
+				},
+			},
+		},
+	}, nil
 }
 
 // Ubuntu images use arm64 and amd64, but Lima uses aarch64 and x86_64
@@ -331,4 +379,28 @@ func getArchForArch(arch string) string {
 	default:
 		return "aarch64" // since we expect it to be running usually on Mac M-series
 	}
+}
+
+// getIPFromVM returns the IP address of the VM with the given name
+func getIPFromVM(vmName string) (string, error) {
+	listCmd := exec.Command("limactl", "shell", vmName, "ip", "-json", "addr", "show", "dev", "lima0")
+	output, err := listCmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("error listing VMs: %v, output: %s", err, output)
+	}
+	type AddressInfo struct {
+		Family string `json:"family"`
+		Local  string `json:"local"`
+	}
+	type NetworkInterface struct {
+		AddrInfo []AddressInfo `json:"addr_info"`
+	}
+
+	var interfaces []NetworkInterface
+	err = json.Unmarshal(output, &interfaces)
+	if err != nil {
+		return "", fmt.Errorf("error unmarshalling JSON: %v, output: %s", err, output)
+	}
+
+	return interfaces[0].AddrInfo[0].Local, nil
 }

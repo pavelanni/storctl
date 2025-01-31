@@ -8,6 +8,7 @@ import (
 
 // MockProvider implements the CloudProvider interface for testing
 type MockProvider struct {
+	NameFunc func() string
 	// Function fields to customize behavior
 	CreateServerFunc       func(opts options.ServerCreateOpts) (*types.Server, error)
 	GetServerFunc          func(name string) (*types.Server, error)
@@ -36,6 +37,13 @@ type MockProvider struct {
 
 // Ensure MockProvider implements CloudProvider interface
 var _ provider.CloudProvider = &MockProvider{}
+
+func (m *MockProvider) Name() string {
+	if m.NameFunc != nil {
+		return m.NameFunc()
+	}
+	return "mock"
+}
 
 // Implementation of interface methods
 func (m *MockProvider) CreateServer(opts options.ServerCreateOpts) (*types.Server, error) {

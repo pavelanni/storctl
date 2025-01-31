@@ -60,6 +60,11 @@ func (p *LimaProvider) ListVolumes(opts options.VolumeListOpts) ([]*types.Volume
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	var labName string
+	if opts.ListOpts.LabelSelector != "" {
+		label := opts.ListOpts.LabelSelector
+		labName = strings.TrimPrefix(label, "lab_name=")
+	}
 	listCmd := exec.CommandContext(ctx, "limactl", "disk", "list", "--json")
 	output, err := listCmd.CombinedOutput()
 	if err != nil {
@@ -75,7 +80,9 @@ func (p *LimaProvider) ListVolumes(opts options.VolumeListOpts) ([]*types.Volume
 		if err != nil {
 			return nil, fmt.Errorf("error unmarshalling disk %s: %v", line, err)
 		}
-		disks = append(disks, disk)
+		if strings.HasPrefix(disk.Name, labName) {
+			disks = append(disks, disk)
+		}
 	}
 	return p.mapVolumes(disks), nil
 }

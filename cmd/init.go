@@ -63,12 +63,16 @@ func createConfig() error {
 		return nil
 	}
 	var defaultCfg config.Config
-	defaultCfg.Provider.Name = config.DefaultProvider
-	defaultCfg.Provider.Location = config.DefaultLocation
-	defaultCfg.Provider.Token = config.DefaultToken
-	defaultCfg.Provider.Credentials = map[string]string{
-		"username": config.DefaultCredentials,
-		"password": config.DefaultCredentials,
+	defaultCfg.Providers = []config.ProviderConfig{
+		{
+			Name:     config.DefaultProvider,
+			Location: config.DefaultLocation,
+			Token:    config.DefaultToken,
+			Credentials: map[string]string{
+				"username": config.DefaultCredentials,
+				"password": config.DefaultCredentials,
+			},
+		},
 	}
 	defaultCfg.DNS.Provider = config.DefaultDNSProvider
 	defaultCfg.DNS.ZoneID = config.DefaultDNSZoneID

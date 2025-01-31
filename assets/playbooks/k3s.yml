@@ -31,7 +31,7 @@
     - name: Install K3s agent
       ansible.builtin.shell: /tmp/k3s_install.sh
       environment:
-        K3S_URL: "https://{{ hostvars[groups['control_plane'][0]]['inventory_hostname'] }}:6443"
+        K3S_URL: "https://{{ hostvars[groups['control_plane'][0]]['ansible_host'] }}:6443"
         K3S_TOKEN: "{{ hostvars[groups['control_plane'][0]]['node_token']['stdout'] }}"
 
 - name: Configure kubectl on control plane
@@ -59,7 +59,7 @@
       ansible.builtin.replace:
         path: /home/{{ ansible_user }}/.kube/config
         regexp: "https://127.0.0.1:6443"
-        replace: "https://{{ inventory_hostname }}:6443"
+        replace: "https://{{ ansible_host }}:6443"
 
     - name: Fetch kubeconfig to Ansible control host
       ansible.builtin.fetch:

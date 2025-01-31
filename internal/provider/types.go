@@ -6,6 +6,7 @@ import (
 )
 
 type CloudProvider interface {
+	Name() string
 	// Server operations
 	CreateServer(opts options.ServerCreateOpts) (*types.Server, error)
 	GetServer(name string) (*types.Server, error)

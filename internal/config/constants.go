@@ -59,7 +59,7 @@ const (
 // Provider related constants
 const (
 	// DefaultProvider is the default provider
-	DefaultProvider = "hetzner"
+	DefaultProvider = "lima"
 
 	// DefaultDomain is the default domain
 	DefaultDomain = "aistorlabs.com"

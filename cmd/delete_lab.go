@@ -21,6 +21,14 @@ func NewDeleteLabCmd() *cobra.Command {
 				return nil
 			}
 
+			err := initProvider(useProvider)
+			if err != nil {
+				return err
+			}
+			err = initLabManager()
+			if err != nil {
+				return err
+			}
 			// Delete the lab using lab manager
 			if err := labSvc.Delete(labName, skipTimeCheck); err != nil {
 				return fmt.Errorf("failed to delete lab: %w", err)

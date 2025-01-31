@@ -43,7 +43,7 @@ func NewCreateServerCmd() *cobra.Command {
 					ServerType:  serverType,
 					Image:       image,
 					Location:    location,
-					Provider:    cfg.Provider.Name,
+					Provider:    provider,
 					SSHKeyNames: sshKeyNames,
 				},
 			}
@@ -68,6 +68,12 @@ func NewCreateServerCmd() *cobra.Command {
 }
 
 func createServer(server *types.Server) (*types.Server, error) {
+	err := initProvider(server.Spec.Provider)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize provider: %w", err)
+	}
+
+	var sshKeys []*types.SSHKey
 	sshManager := ssh.NewManager(cfg)
 	// no ssh keys provided, use the admin key
 	if len(server.Spec.SSHKeyNames) == 0 {
@@ -97,30 +103,33 @@ func createServer(server *types.Server) (*types.Server, error) {
 	labels["delete_after"] = timeutil.FormatDeleteAfter(time.Now().Add(duration))
 	labels["owner"] = labelutil.SanitizeValue(cfg.Owner)
 
-	// create the ssh keys locally
-	for _, sshKeyName := range server.Spec.SSHKeyNames {
-		_, err := sshManager.CreateLocalKeyPair(sshKeyName)
+	if server.Spec.Provider != "lima" {
+		// create the ssh keys locally
+		for _, sshKeyName := range server.Spec.SSHKeyNames {
+			_, err := sshManager.CreateLocalKeyPair(sshKeyName)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create local ssh key: %w", err)
+			}
+		}
+		sshKeys, err = providerSvc.KeyNamesToSSHKeys(server.Spec.SSHKeyNames, options.SSHKeyCreateOpts{
+			Labels: labels,
+		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to create local ssh key: %w", err)
+			return nil, fmt.Errorf("failed to upload ssh keys to the cloud: %w", err)
 		}
 	}
-	sshKeys, err := providerSvc.KeyNamesToSSHKeys(server.Spec.SSHKeyNames, options.SSHKeyCreateOpts{
-		Labels: labels,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to upload ssh keys to the cloud: %w", err)
-	}
 
-	// create the cloud init user data with the admin key
 	opts, err := providerSvc.ServerToCreateOpts(server)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to convert server to create opts: %w", err)
 	}
-	opts.SSHKeys = sshKeys
+	if server.Spec.Provider != "lima" {
+		opts.SSHKeys = sshKeys
+	}
 	result, err := providerSvc.CreateServer(opts)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create server: %w", err)
 	}
 
-	return result, err
+	return result, nil
 }

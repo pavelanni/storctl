@@ -34,12 +34,21 @@ type Inventory struct {
 
 func (m *ManagerSvc) CreateAnsibleInventoryFile(lab *types.Lab) error {
 	homeDir, err := os.UserHomeDir()
+	ansibleUser := config.DefaultAdminUser
+	ansibleSSHPrivateKeyFile := filepath.Join(homeDir, config.DefaultConfigDir, config.DefaultKeysDir, strings.Join([]string{lab.ObjectMeta.Name, "admin"}, "-"))
 	if err != nil {
 		return err
 	}
+	if m.Provider.Name() == "lima" {
+		lab.Spec.CertManager = false
+		lab.Spec.LetsEncrypt = "none"
+		ansibleUser = os.Getenv("USER")
+		ansibleSSHPrivateKeyFile = filepath.Join(homeDir, ".lima", "_config", "user")
+	}
+
 	allVars := map[string]any{
-		"ansible_user":                 config.DefaultAdminUser,
-		"ansible_ssh_private_key_file": filepath.Join(homeDir, config.DefaultConfigDir, config.DefaultKeysDir, strings.Join([]string{lab.ObjectMeta.Name, "admin"}, "-")),
+		"ansible_user":                 ansibleUser,
+		"ansible_ssh_private_key_file": ansibleSSHPrivateKeyFile,
 		"ansible_ssh_common_args":      "-o StrictHostKeyChecking=no",
 		"lab_name":                     lab.ObjectMeta.Name,
 		"domain_name":                  config.DefaultDomain,

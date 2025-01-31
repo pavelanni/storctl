@@ -29,6 +29,14 @@ func NewGetLabCmd() *cobra.Command {
 }
 
 func listLabs() error {
+	err := initProvider(useProvider)
+	if err != nil {
+		return err
+	}
+	err = initLabManager()
+	if err != nil {
+		return err
+	}
 	labs, err := labSvc.List()
 	if err != nil {
 		return err
@@ -72,6 +80,11 @@ func listLabs() error {
 }
 
 func getLab(labName string) error {
+	err := initProvider(useProvider)
+	if err != nil {
+		return err
+	}
+	initLabManager()
 	fmt.Printf("Getting details for lab: %s\n", labName)
 	lab, err := labSvc.Get(labName)
 	if err != nil {

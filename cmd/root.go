@@ -19,6 +19,7 @@ var (
 	cfgFile     string
 	cfg         *config.Config
 	providerSvc provider.CloudProvider
+	useProvider string
 	dnsSvc      *dns.CloudflareDNSProvider
 	labSvc      *lab.ManagerSvc
 	logLevel    string
@@ -40,9 +41,7 @@ func NewRootCmd() *cobra.Command {
 
 			// Continue with other initializations
 			initConfig()
-			initProvider()
 			initDNS()
-			initLabManager()
 			return nil
 		},
 	}
@@ -51,6 +50,7 @@ func NewRootCmd() *cobra.Command {
 	defaultConfigFile := filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, "config.yaml")
 	cmd.PersistentFlags().StringVar(&cfgFile, "config", defaultConfigFile, "config file")
 	cmd.PersistentFlags().StringVar(&logLevel, "log-level", "warn", "logging level (debug, info, warn, error)")
+	cmd.PersistentFlags().StringVar(&useProvider, "provider", config.DefaultProvider, "Provider to use")
 	err := viper.BindPFlag("log_level", cmd.PersistentFlags().Lookup("log-level"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error binding log level flag: %v\n", err)
@@ -112,14 +112,14 @@ func initConfig() {
 	cfg.LogLevel = viper.GetString("log_level")
 }
 
-func initProvider() {
+func initProvider(providerName string) error {
 	var err error
 
-	providerSvc, err = provider.NewProvider(*cfg)
+	providerSvc, err = provider.NewProvider(*cfg, providerName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error initializing provider: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("error initializing provider: %w", err)
 	}
+	return nil
 }
 
 func initDNS() {
@@ -137,13 +137,13 @@ func initDNS() {
 	}
 }
 
-func initLabManager() {
+func initLabManager() error {
 	var err error
 	labSvc, err = lab.NewManager(providerSvc, cfg)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error initializing lab manager: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("error initializing lab manager: %w", err)
 	}
+	return nil
 }
 
 func Execute() error {

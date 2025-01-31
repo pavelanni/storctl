@@ -90,6 +90,275 @@ func NewManager(provider provider.CloudProvider, cfg *config.Config) (*ManagerSv
 // It creates the lab in the cloud and stores the lab in the local storage
 // It creates servers, volumes, and ssh keys
 func (m *ManagerSvc) Create(lab *types.Lab) error {
+	switch lab.Spec.Provider {
+	case "lima":
+		return m.createLabLima(lab)
+	case "hetzner":
+		return m.createLabHetzner(lab)
+	}
+	return nil
+}
+
+func (m *ManagerSvc) Get(labName string) (*types.Lab, error) {
+	// DEBUG
+	if m == nil {
+		return nil, fmt.Errorf("manager is nil")
+	}
+	if m.Storage == nil {
+		return nil, fmt.Errorf("storage is nil")
+	}
+	lab, err := m.Storage.Get(labName)
+	if err == nil {
+		return lab, nil
+	}
+	lab, err = m.syncLabFromProvider(labName)
+	if err != nil {
+		return nil, err
+	}
+	return lab, nil
+}
+
+func (m *ManagerSvc) List() ([]*types.Lab, error) {
+	var labs []*types.Lab
+
+	err := m.Storage.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(m.Storage.labBucket)
+		if b == nil {
+			return fmt.Errorf("labs bucket not found in database")
+		}
+
+		return b.ForEach(func(k, v []byte) error {
+			var lab types.Lab
+			if err := json.Unmarshal(v, &lab); err != nil {
+				return err
+			}
+			labs = append(labs, &lab)
+			return nil
+		})
+	})
+
+	return labs, err
+}
+
+func (m *ManagerSvc) SyncLabs() error {
+	labsMap := make(map[string]*types.Lab)
+	allServers, err := m.Provider.AllServers()
+	if err != nil {
+		return err
+	}
+	// collect unique lab names
+	for _, server := range allServers {
+		if server.Labels["lab_name"] != "" {
+			labsMap[server.Labels["lab_name"]] = &types.Lab{}
+		}
+	}
+	for labName := range labsMap {
+		lab, err := m.getLabFromProvider(labName)
+		if err != nil {
+			return err
+		}
+		labsMap[labName] = lab
+	}
+	return m.Storage.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(m.Storage.labBucket)
+
+		// Clear existing data
+		if err := b.ForEach(func(k, v []byte) error {
+			return b.Delete(k)
+		}); err != nil {
+			return err
+		}
+
+		// Store new data
+		for labName, lab := range labsMap {
+			data, err := json.Marshal(lab)
+			if err != nil {
+				return err
+			}
+			if err := b.Put([]byte(labName), data); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (m *ManagerSvc) Delete(labName string, force bool) error {
+	var err error
+	switch m.Provider.Name() {
+	case "lima":
+		err = m.deleteLabLima(labName, force)
+	case "hetzner":
+		err = m.deleteLabHetzner(labName, force)
+	}
+	if err != nil {
+		return err
+	}
+	err = m.Storage.Delete(labName)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Storage) Get(labName string) (*types.Lab, error) {
+	var lab *types.Lab
+
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(s.labBucket)
+		data := b.Get([]byte(labName))
+		if data == nil {
+			return fmt.Errorf("lab %s not found", labName)
+		}
+
+		lab = &types.Lab{}
+		if err := json.Unmarshal(data, lab); err != nil {
+			return err
+		}
+		return nil
+	})
+
+	return lab, err
+}
+
+func (s *Storage) Save(lab *types.Lab) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(s.labBucket)
+		data, err := json.Marshal(lab)
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(lab.Name), data)
+	})
+}
+
+func (s *Storage) Delete(labName string) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		return tx.Bucket(s.labBucket).Delete([]byte(labName))
+	})
+}
+
+func (m *ManagerSvc) syncLabFromProvider(labName string) (*types.Lab, error) {
+	lab, err := m.getLabFromProvider(labName)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.Storage.Save(lab); err != nil {
+		m.Logger.Warn("failed to save lab to storage", "error", err)
+	}
+	return lab, nil
+}
+
+func (m *ManagerSvc) getLabFromProvider(labName string) (*types.Lab, error) {
+	lab := &types.Lab{
+		TypeMeta: types.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Lab",
+		},
+		ObjectMeta: types.ObjectMeta{
+			Name: labName,
+		},
+	}
+
+	servers, err := m.Provider.ListServers(options.ServerListOpts{
+		ListOpts: options.ListOpts{
+			LabelSelector: "lab_name=" + labName,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	volumes, err := m.Provider.ListVolumes(options.VolumeListOpts{
+		ListOpts: options.ListOpts{
+			LabelSelector: "lab_name=" + labName,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	lab.Status.Servers = append(lab.Status.Servers, servers...)
+	lab.Status.Volumes = append(lab.Status.Volumes, volumes...)
+	// Add labels from the first server
+	if len(servers) > 0 {
+		lab.ObjectMeta.Labels = servers[0].ObjectMeta.Labels
+	}
+	lab.Status.State = servers[0].Status.Status
+	lab.Status.Owner = servers[0].Status.Owner
+	lab.Status.Created = servers[0].Status.Created
+	lab.Status.DeleteAfter = servers[0].Status.DeleteAfter
+	lab.Spec.Location = servers[0].Spec.Location
+	lab.Spec.Provider = servers[0].Spec.Provider
+	return lab, nil
+}
+
+func (m *ManagerSvc) createLabLima(lab *types.Lab) error {
+	volumes := lab.Spec.Volumes
+	for _, volume := range volumes {
+		fmt.Printf("Creating volume %s of size %dGB...\n", strings.Join([]string{lab.ObjectMeta.Name, volume.Name}, "-"), volume.Size)
+		_, err := m.Provider.CreateVolume(options.VolumeCreateOpts{
+			Name:       strings.Join([]string{lab.ObjectMeta.Name, volume.Name}, "-"),
+			Size:       volume.Size,
+			ServerName: volume.Server,
+			Automount:  volume.Automount,
+			Format:     volume.Format,
+			Labels:     lab.ObjectMeta.Labels,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	additionalDisks := make(map[string][]options.AdditionalDisk)
+	for _, volume := range volumes {
+		labServerName := strings.Join([]string{lab.ObjectMeta.Name, volume.Server}, "-")
+		additionalDisks[labServerName] = append(additionalDisks[labServerName], options.AdditionalDisk{
+			Name:   strings.Join([]string{lab.ObjectMeta.Name, volume.Name}, "-"),
+			Format: false,
+		})
+	}
+	// DEBUG
+	fmt.Printf("Additional disks: %v\n", additionalDisks)
+	specServers := lab.Spec.Servers
+	for _, serverSpec := range specServers {
+		s := &types.Server{
+			TypeMeta: types.TypeMeta{
+				Kind:       "Server",
+				APIVersion: "v1",
+			},
+			ObjectMeta: types.ObjectMeta{
+				Name:   strings.Join([]string{lab.ObjectMeta.Name, serverSpec.Name}, "-"),
+				Labels: lab.ObjectMeta.Labels,
+			},
+			Spec: types.ServerSpec{
+				Location:   lab.Spec.Location,
+				Provider:   lab.Spec.Provider,
+				ServerType: serverSpec.ServerType,
+				Image:      serverSpec.Image,
+			},
+		}
+		// DEBUG
+		serverAdditionalDisks, ok := additionalDisks[s.ObjectMeta.Name]
+		if !ok {
+			serverAdditionalDisks = []options.AdditionalDisk{}
+		}
+		fmt.Printf("Creating server %s with additional disks: %v\n", s.ObjectMeta.Name, serverAdditionalDisks)
+		_, err := m.Provider.CreateServer(options.ServerCreateOpts{
+			Name:            s.ObjectMeta.Name,
+			Type:            s.Spec.ServerType,
+			Image:           s.Spec.Image,
+			Location:        s.Spec.Location,
+			Provider:        s.Spec.Provider,
+			Labels:          s.ObjectMeta.Labels,
+			AdditionalDisks: serverAdditionalDisks,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *ManagerSvc) createLabHetzner(lab *types.Lab) error {
 	labAdminKeyName := strings.Join([]string{lab.ObjectMeta.Name, "admin"}, "-")
 	sshKeys := make([]*types.SSHKey, 2) // 2 keys: default admin key and lab admin key
 	sshKeys[0] = &types.SSHKey{         // default admin key is already on the cloud
@@ -220,84 +489,40 @@ func (m *ManagerSvc) Create(lab *types.Lab) error {
 	return nil
 }
 
-func (m *ManagerSvc) Get(labName string) (*types.Lab, error) {
-	lab, err := m.Storage.Get(labName)
-	if err == nil {
-		return lab, nil
-	}
-	lab, err = m.syncLabFromCloud(labName)
-	if err != nil {
-		return nil, err
-	}
-	return lab, nil
-}
-
-func (m *ManagerSvc) List() ([]*types.Lab, error) {
-	var labs []*types.Lab
-
-	err := m.Storage.db.View(func(tx *bbolt.Tx) error {
-		b := tx.Bucket(m.Storage.labBucket)
-		if b == nil {
-			return fmt.Errorf("labs bucket not found in database")
-		}
-
-		return b.ForEach(func(k, v []byte) error {
-			var lab types.Lab
-			if err := json.Unmarshal(v, &lab); err != nil {
-				return err
-			}
-			labs = append(labs, &lab)
-			return nil
-		})
-	})
-
-	return labs, err
-}
-
-func (m *ManagerSvc) SyncLabs() error {
-	labsMap := make(map[string]*types.Lab)
-	allServers, err := m.Provider.AllServers()
+func (m *ManagerSvc) deleteLabLima(labName string, force bool) error {
+	lab, err := m.Get(labName)
 	if err != nil {
 		return err
 	}
-	// collect unique lab names
-	for _, server := range allServers {
-		if server.Labels["lab_name"] != "" {
-			labsMap[server.Labels["lab_name"]] = &types.Lab{}
-		}
-	}
-	for labName := range labsMap {
-		lab, err := m.getLabFromCloud(labName)
-		if err != nil {
-			return err
-		}
-		labsMap[labName] = lab
-	}
-	return m.Storage.db.Update(func(tx *bbolt.Tx) error {
-		b := tx.Bucket(m.Storage.labBucket)
-
-		// Clear existing data
-		if err := b.ForEach(func(k, v []byte) error {
-			return b.Delete(k)
-		}); err != nil {
-			return err
-		}
-
-		// Store new data
-		for labName, lab := range labsMap {
-			data, err := json.Marshal(lab)
-			if err != nil {
-				return err
-			}
-			if err := b.Put([]byte(labName), data); err != nil {
-				return err
+	// in Lima, delete servers first
+	for _, server := range lab.Status.Servers {
+		// delete server's ssh keys
+		for _, sshKeyName := range server.Spec.SSHKeyNames {
+			m.Logger.Debug("deleting ssh key", "key", sshKeyName)
+			status := m.Provider.DeleteSSHKey(sshKeyName, force)
+			if status.Error != nil {
+				m.Logger.Error("failed to delete ssh key", "key", sshKeyName, "error", status.Error)
 			}
 		}
-		return nil
-	})
+		m.Logger.Debug("deleting server", "server", server.ObjectMeta.Name)
+		status := m.Provider.DeleteServer(server.ObjectMeta.Name, force)
+		if status.Error != nil {
+			m.Logger.Error("failed to delete server", "server", server.ObjectMeta.Name, "error", status.Error)
+		}
+	}
+
+	// delete volumes after servers
+	for _, volume := range lab.Status.Volumes {
+		m.Logger.Debug("deleting volume", "volume", volume.ObjectMeta.Name)
+		status := m.Provider.DeleteVolume(volume.ObjectMeta.Name, force)
+		if status.Error != nil {
+			m.Logger.Error("failed to delete volume", "volume", volume.ObjectMeta.Name, "error", status.Error)
+		}
+	}
+	return nil
 }
 
-func (m *ManagerSvc) Delete(labName string, force bool) error {
+func (m *ManagerSvc) deleteLabHetzner(labName string, force bool) error {
 	lab, err := m.Get(labName)
 	if err != nil {
 		return err
@@ -331,92 +556,5 @@ func (m *ManagerSvc) Delete(labName string, force bool) error {
 		}
 	}
 
-	// delete lab from storage
-	return m.Storage.db.Update(func(tx *bbolt.Tx) error {
-		return tx.Bucket(m.Storage.labBucket).Delete([]byte(labName))
-	})
-}
-
-func (s *Storage) Get(labName string) (*types.Lab, error) {
-	var lab *types.Lab
-
-	err := s.db.View(func(tx *bbolt.Tx) error {
-		b := tx.Bucket(s.labBucket)
-		data := b.Get([]byte(labName))
-		if data == nil {
-			return fmt.Errorf("lab %s not found", labName)
-		}
-
-		lab = &types.Lab{}
-		if err := json.Unmarshal(data, lab); err != nil {
-			return err
-		}
-		return nil
-	})
-
-	return lab, err
-}
-
-func (s *Storage) Save(lab *types.Lab) error {
-	return s.db.Update(func(tx *bbolt.Tx) error {
-		b := tx.Bucket(s.labBucket)
-		data, err := json.Marshal(lab)
-		if err != nil {
-			return err
-		}
-		return b.Put([]byte(lab.Name), data)
-	})
-}
-
-func (m *ManagerSvc) syncLabFromCloud(labName string) (*types.Lab, error) {
-	lab, err := m.getLabFromCloud(labName)
-	if err != nil {
-		return nil, err
-	}
-	if err := m.Storage.Save(lab); err != nil {
-		m.Logger.Warn("failed to save lab to storage", "error", err)
-	}
-	return lab, nil
-}
-
-func (m *ManagerSvc) getLabFromCloud(labName string) (*types.Lab, error) {
-	lab := &types.Lab{
-		TypeMeta: types.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "Lab",
-		},
-		ObjectMeta: types.ObjectMeta{
-			Name: labName,
-		},
-	}
-
-	servers, err := m.Provider.ListServers(options.ServerListOpts{
-		ListOpts: options.ListOpts{
-			LabelSelector: "lab_name=" + labName,
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-	volumes, err := m.Provider.ListVolumes(options.VolumeListOpts{
-		ListOpts: options.ListOpts{
-			LabelSelector: "lab_name=" + labName,
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-	lab.Status.Servers = append(lab.Status.Servers, servers...)
-	lab.Status.Volumes = append(lab.Status.Volumes, volumes...)
-	// Add labels from the first server
-	if len(servers) > 0 {
-		lab.ObjectMeta.Labels = servers[0].ObjectMeta.Labels
-	}
-	lab.Status.State = servers[0].Status.Status
-	lab.Status.Owner = servers[0].Status.Owner
-	lab.Status.Created = servers[0].Status.Created
-	lab.Status.DeleteAfter = servers[0].Status.DeleteAfter
-	lab.Spec.Location = servers[0].Spec.Location
-	lab.Spec.Provider = servers[0].Spec.Provider
-	return lab, nil
+	return nil
 }
