@@ -299,7 +299,7 @@ func createVM(ctx context.Context, name, configPath string) error {
 		if ctx.Err() == context.DeadlineExceeded {
 			return fmt.Errorf("timeout while creating VM: %w", err)
 		}
-		return fmt.Errorf("creating VM: %w", err)
+		return fmt.Errorf("error creating VM: %w", err)
 	}
 
 	fmt.Printf("Successfully created VM %s\n", name)

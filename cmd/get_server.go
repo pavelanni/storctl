@@ -29,6 +29,10 @@ func NewGetServerCmd() *cobra.Command {
 }
 
 func listServers() error {
+	err := initProvider(useProvider)
+	if err != nil {
+		return err
+	}
 	servers, err := providerSvc.AllServers()
 	if err != nil {
 		return err
@@ -52,6 +56,10 @@ func listServers() error {
 }
 
 func getServer(serverID string) error {
+	err := initProvider(useProvider)
+	if err != nil {
+		return err
+	}
 	server, err := providerSvc.GetServer(serverID)
 	if err != nil {
 		return err

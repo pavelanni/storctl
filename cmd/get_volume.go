@@ -29,6 +29,10 @@ func NewGetVolumeCmd() *cobra.Command {
 }
 
 func listVolumes() error {
+	err := initProvider(useProvider)
+	if err != nil {
+		return err
+	}
 	volumes, err := providerSvc.AllVolumes()
 	if err != nil {
 		return err
@@ -53,6 +57,10 @@ func listVolumes() error {
 }
 
 func getVolume(volumeID string) error {
+	err := initProvider(useProvider)
+	if err != nil {
+		return err
+	}
 	volume, err := providerSvc.GetVolume(volumeID)
 	if err != nil {
 		return err

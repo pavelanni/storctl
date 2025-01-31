@@ -31,7 +31,7 @@ func NewDeleteLabCmd() *cobra.Command {
 			}
 			// Delete the lab using lab manager
 			if err := labSvc.Delete(labName, skipTimeCheck); err != nil {
-				return fmt.Errorf("failed to delete lab: %w", err)
+				return fmt.Errorf("error deleting lab: %w", err)
 			}
 
 			fmt.Printf("Successfully deleted lab %s\n", labName)

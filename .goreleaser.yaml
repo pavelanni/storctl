@@ -18,6 +18,12 @@ before:
 builds:
 - env:
   - CGO_ENABLED=0
+  ldflags:
+  - -s -w -trimpath
+  - -X {{ .ModulePath }}/internal/version.Version={{.Version}}
+  - -X {{ .ModulePath }}/internal/version.Commit={{.Commit}}
+  - -X {{ .ModulePath }}/internal/version.Date={{.Date}}
+  - -X {{ .ModulePath }}/internal/version.GoVersion={{.GoVersion}}
   goos:
   - linux
   - darwin

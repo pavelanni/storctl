@@ -316,8 +316,6 @@ func (m *ManagerSvc) createLabLima(lab *types.Lab) error {
 			Format: false,
 		})
 	}
-	// DEBUG
-	fmt.Printf("Additional disks: %v\n", additionalDisks)
 	specServers := lab.Spec.Servers
 	for _, serverSpec := range specServers {
 		s := &types.Server{

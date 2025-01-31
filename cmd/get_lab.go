@@ -84,8 +84,10 @@ func getLab(labName string) error {
 	if err != nil {
 		return err
 	}
-	initLabManager()
-	fmt.Printf("Getting details for lab: %s\n", labName)
+	err = initLabManager()
+	if err != nil {
+		return err
+	}
 	lab, err := labSvc.Get(labName)
 	if err != nil {
 		return err

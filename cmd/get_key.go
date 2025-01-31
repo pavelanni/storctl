@@ -27,6 +27,10 @@ func NewGetKeyCmd() *cobra.Command {
 }
 
 func listKeys() error {
+	err := initProvider(useProvider)
+	if err != nil {
+		return err
+	}
 	keys, err := providerSvc.AllSSHKeys()
 	if err != nil {
 		return err
@@ -55,6 +59,10 @@ func listKeys() error {
 }
 
 func getKey(name string) error {
+	err := initProvider(useProvider)
+	if err != nil {
+		return err
+	}
 	key, err := providerSvc.GetSSHKey(name)
 	if err != nil {
 		return err
