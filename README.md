@@ -1,14 +1,15 @@
 # storctl - AIStor Environment Manager
 
-`storctl` is a command-line tool for managing demo and lab environments in cloud infrastructure. The main focus of this tool is on MinIO AIStor testing, training, and demonstration.
+`storctl` is a command-line tool for managing demo and lab environments in cloud infrastructure or on the local host using virtual machines.
+The main focus of this tool is on MinIO AIStor testing, training, and demonstration.
 
 ## Features
 
 - Create and manage lab environments with multiple servers and volumes
 - Manage DNS records with Cloudflare
-- Use Hetzner Cloud infrastructure (currently)
+- Use Lima virtual machines on macOS or Hetzner Cloud infrastructure (currently)
 - Manage SSH keys to access cloud VMs
-- Manage resource lifecycle with TTL (Time To Live)
+- Manage cloud resource lifecycle with TTL (Time To Live)
 - Use YAML-based configuration and resource definitions similar to Kubernetes
 
 ## Installation
@@ -16,8 +17,16 @@
 ### Prerequisites
 
 - Go 1.23 or later
-- A Hetzner Cloud account and API token
-- A Cloudflare account and API token (for DNS management)
+- If using Lima:
+  - Lima installed on your macOS (via Homebrew)
+  - 16 GB RAM min, 32 GB preferred
+- If using cloud:
+  - A Hetzner Cloud account and API token
+  - A Cloudflare account and API token (for DNS management)
+
+### Using released binaries
+
+Download binaries for your OS/arch from the Releases page.
 
 ### Building from source
 
@@ -26,6 +35,7 @@ git clone https://github.com/pavelanni/storctl
 cd storctl
 go build .
 ```
+
 
 ## Configuration
 
@@ -37,17 +47,20 @@ storctl init
 
 This creates a default configuration directory at `~/.storctl` with the following structure:
 
-- `config.yaml` - Main configuration file
-- `templates/` - Lab environment templates
-- `keys/` - SSH key storage
+- `config.yaml` -- Main configuration file
+- `templates/` -- Lab environment templates
+- `keys/` -- SSH key storage
+- `ansible/` -- for Ansible playbooks and inventory files
+- `lima/` -- for Lima configs
 
 1. Edit the configuration file at `~/.storctl/config.yaml`:
 
 ```yaml
-provider:
-  token: "your-hetzner-token"
-  name: "hetzner"
-  location: "nbg1" # EU locations: nbd1, fsn1, hel1; US locations: ash, hil; APAC locations: sin
+providers:
+  - name: "hetzner"
+    token: "your-hetzner-token"
+    location: "nbg1" # EU locations: nbd1, fsn1, hel1; US locations: ash, hil; APAC locations: sin
+  - name: "lima"
 
 dns:
   provider: "cloudflare"
@@ -69,7 +82,7 @@ owner: "your-name"
 storctl config view
 
 # Create a new lab environment
-storctl create lab mylab
+storctl create lab mylab --template lab-edge.yaml
 
 # List all labs
 storctl get lab
