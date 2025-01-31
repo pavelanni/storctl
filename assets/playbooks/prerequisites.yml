@@ -27,6 +27,11 @@
         path: /etc/cloud/cloud.cfg
         line: "preserve_hostname: true"
 
+    - name: Remove systemd-timesyncd package # conflicts with ntp
+      ansible.builtin.package:
+        name: systemd-timesyncd
+        state: absent
+
     # Control plane specific tasks
     - name: Install base packages
       ansible.builtin.package:

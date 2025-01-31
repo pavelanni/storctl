@@ -19,6 +19,7 @@ func NewCreateVolumeCmd() *cobra.Command {
 		labels    map[string]string
 		automount bool
 		format    string
+		provider  string
 	)
 
 	cmd := &cobra.Command{
@@ -37,6 +38,7 @@ func NewCreateVolumeCmd() *cobra.Command {
 					Labels: labels,
 				},
 				Spec: types.VolumeSpec{
+					Provider:  provider,
 					Size:      size,
 					ServerID:  server,
 					Labels:    labels,
@@ -53,14 +55,15 @@ func NewCreateVolumeCmd() *cobra.Command {
 	cmd.Flags().StringToStringVar(&labels, "labels", map[string]string{}, "Volume labels")
 	cmd.Flags().BoolVar(&automount, "automount", false, "Automount the volume")
 	cmd.Flags().StringVar(&format, "format", config.DefaultVolumeFormat, "Volume format")
-	if err := cmd.MarkFlagRequired("server"); err != nil {
-		panic(err)
-	}
-
+	cmd.Flags().StringVar(&provider, "provider", config.DefaultProvider, "Provider")
 	return cmd
 }
 
 func createVolume(volume *types.Volume) error {
+	err := initProvider(volume.Spec.Provider)
+	if err != nil {
+		return fmt.Errorf("failed to initialize provider: %w", err)
+	}
 	fmt.Printf("Creating volume %s with size %d\n",
 		volume.ObjectMeta.Name,
 		volume.Spec.Size)

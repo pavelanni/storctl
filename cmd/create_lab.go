@@ -36,6 +36,9 @@ func NewCreateLabCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("error parsing lab template: %w", err)
 			}
+			if provider != "" {
+				lab.Spec.Provider = provider // override the provider in the template
+			}
 			_, err = createLab(lab)
 			if err != nil {
 				return fmt.Errorf("error creating lab: %w", err)
@@ -46,7 +49,7 @@ func NewCreateLabCmd() *cobra.Command {
 
 	defaultTemplate := filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, config.DefaultTemplateDir, "lab.yaml")
 	cmd.Flags().StringVar(&template, "template", defaultTemplate, "lab template to use")
-	cmd.Flags().StringVar(&provider, "provider", config.DefaultProvider, "provider to use")
+	cmd.Flags().StringVar(&provider, "provider", "", "provider to use")
 	cmd.Flags().StringVar(&location, "location", config.DefaultLocation, "location to use")
 	cmd.Flags().StringVar(&ttl, "ttl", config.DefaultTTL, "ttl to use")
 	cmd.Flags().StringVar(&playbook, "playbook", "site.yml", "playbook to use")
@@ -69,7 +72,16 @@ func createLab(lab *types.Lab) (*types.Lab, error) {
 	}
 	lab.ObjectMeta.Labels["delete_after"] = timeutil.FormatDeleteAfter(time.Now().Add(duration))
 
-	fmt.Printf("Lab %s: Creating lab resources on the cloud...\n", lab.ObjectMeta.Name)
+	err = initProvider(lab.Spec.Provider)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize provider: %w", err)
+	}
+	err = initLabManager()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize lab manager: %w", err)
+	}
+
+	fmt.Printf("Lab %s: Creating lab resources using provider %s...\n", lab.ObjectMeta.Name, lab.Spec.Provider)
 	labSvc.Logger.Info("Creating new lab",
 		"name", lab.ObjectMeta.Name,
 		"nodes", len(lab.Spec.Servers))
@@ -84,9 +96,11 @@ func createLab(lab *types.Lab) (*types.Lab, error) {
 	}
 	lab.Status = labUpdated.Status
 
-	fmt.Printf("Lab %s: Creating DNS records...\n", lab.ObjectMeta.Name)
-	if err := addDNSRecords(lab); err != nil {
-		return nil, err
+	if lab.Spec.Provider != "lima" { // we don't need DNS records for local VMs
+		fmt.Printf("Lab %s: Creating DNS records...\n", lab.ObjectMeta.Name)
+		if err := addDNSRecords(lab); err != nil {
+			return nil, err
+		}
 	}
 	fmt.Printf("Lab %s: Creating ansible inventory file...\n", lab.ObjectMeta.Name)
 	err = labSvc.CreateAnsibleInventoryFile(lab)

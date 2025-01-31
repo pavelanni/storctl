@@ -10,12 +10,15 @@ spec:
   location: nbg1
   servers:
   - name: cp # control plane server; make sure it ends with 'cp'
+    role: control-plane
     serverType: cx22
     image: ubuntu-24.04
   - name: node-01 # worker node
+    role: worker
     serverType: cx22
     image: ubuntu-24.04
   - name: node-02 # worker node
+    role: worker
     serverType: cx22
     image: ubuntu-24.04
   volumes:

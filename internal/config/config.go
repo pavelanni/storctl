@@ -9,15 +9,15 @@ import (
 )
 
 type Config struct {
-	Provider     ProviderConfig `mapstructure:"provider"`
-	DNS          DNSConfig      `mapstructure:"dns"`
-	Storage      StorageConfig  `mapstructure:"storage"`
-	Email        string         `mapstructure:"email" yaml:"email"`
-	Organization string         `mapstructure:"organization" yaml:"organization"`
-	Owner        string         `mapstructure:"owner" yaml:"owner"`
-	OutputFormat string         `mapstructure:"output_format" yaml:"output_format"`
-	LogLevel     string         `mapstructure:"log_level" yaml:"log_level"`
-	Ansible      AnsibleConfig  `mapstructure:"ansible" yaml:"ansible"`
+	Providers    []ProviderConfig `mapstructure:"providers"`
+	DNS          DNSConfig        `mapstructure:"dns"`
+	Storage      StorageConfig    `mapstructure:"storage"`
+	Email        string           `mapstructure:"email" yaml:"email"`
+	Organization string           `mapstructure:"organization" yaml:"organization"`
+	Owner        string           `mapstructure:"owner" yaml:"owner"`
+	OutputFormat string           `mapstructure:"output_format" yaml:"output_format"`
+	LogLevel     string           `mapstructure:"log_level" yaml:"log_level"`
+	Ansible      AnsibleConfig    `mapstructure:"ansible" yaml:"ansible"`
 }
 
 type StorageConfig struct {
@@ -86,11 +86,8 @@ func LoadConfig(configPath string) (*Config, error) {
 	if config.Email == "" {
 		return nil, fmt.Errorf("Email is not set in the config file")
 	}
-	if config.Provider.Location == "" {
-		return nil, fmt.Errorf("Location is not set in the config file")
-	}
-	if config.Provider.Name == "" {
-		return nil, fmt.Errorf("Provider is not set in the config file")
+	if len(config.Providers) == 0 {
+		return nil, fmt.Errorf("Providers are not set in the config file. You should have at least one provider")
 	}
 	return &config, nil
 }

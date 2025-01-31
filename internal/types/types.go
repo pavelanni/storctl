@@ -111,6 +111,7 @@ type LabStatus struct {
 
 type LabServerSpec struct {
 	Name       string `json:"name"`
+	Role       string `json:"role"`
 	ServerType string `json:"type"`
 	Image      string `json:"image"`
 }
@@ -185,5 +186,5 @@ type PublicNet struct {
 }
 
 type IPv4 struct {
-	IP string
+	IP string `json:"ip"`
 }
