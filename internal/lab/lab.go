@@ -1,3 +1,8 @@
+// Package lab contains the lab manager for the storctl tool.
+// It includes the functions to create, get, list, and delete labs.
+// It also includes the functions to sync labs from the provider and create an ansible inventory file.
+// Each lab is stored in the local storage and can be retrieved later.
+// The lab manager also includes the functions to create an ansible inventory file and run an ansible playbook.
 package lab
 
 import (

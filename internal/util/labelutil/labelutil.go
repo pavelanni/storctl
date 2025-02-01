@@ -1,3 +1,4 @@
+// Package labelutil contains the functions to sanitize and merge labels.
 package labelutil
 
 import "regexp"

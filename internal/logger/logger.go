@@ -1,3 +1,6 @@
+// Package logger contains the logger for the storctl tool.
+// It includes the functions to initialize the logger and get the global logger instance.
+// The logger is used to log messages to the console.
 package logger
 
 import (

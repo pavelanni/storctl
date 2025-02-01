@@ -1,3 +1,4 @@
+// Package serverchecker contains the functions to check if a cloud server is ready.
 package serverchecker
 
 import (

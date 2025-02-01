@@ -1,3 +1,5 @@
+// Package cmd contains all commands for the storctl tool.
+// It includes commands to get, create, delete, and sync lab resources.
 package cmd
 
 import (

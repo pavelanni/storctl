@@ -1,3 +1,5 @@
+// Package output contains the functions to format and write data to the console.
+// It includes the functions to format data as JSON and YAML.
 package output
 
 import (

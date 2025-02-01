@@ -1,3 +1,5 @@
+// Package provider contains the factory for the cloud and local providers.
+// It includes the functions to create a new cloud provider based on the configuration.
 package provider
 
 import (

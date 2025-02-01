@@ -1,3 +1,5 @@
+// Package options contains the options for the provider.
+// It includes the options for the server, volume, and lab.
 package options
 
 import "github.com/pavelanni/storctl/internal/types"

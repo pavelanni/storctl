@@ -1,3 +1,5 @@
+// Package types contains the types for the storctl tool.
+// It includes the types for the server, volume, lab, and SSH key.
 package types
 
 import (

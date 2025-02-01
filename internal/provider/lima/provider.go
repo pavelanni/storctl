@@ -1,3 +1,6 @@
+// Package lima contains the Lima implementation of the provider interface for the storctl tool.
+// It includes the functions to create, get, list, and delete volumes.
+// It also includes the functions to get the server and key for the lab.
 package lima
 
 import (

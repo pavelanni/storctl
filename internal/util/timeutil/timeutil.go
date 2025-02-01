@@ -1,3 +1,4 @@
+// Package timeutil contains the functions to parse and format time.
 package timeutil
 
 import (

@@ -1,3 +1,7 @@
+// Package config contains the configuration for the storctl tool.
+// It includes the configuration for the providers, DNS, storage, email, organization, owner, output format, log level, and ansible.
+// The configuration is read from a YAML file and can be overridden by environment variables.
+// This package also contains the default values for the configuration in the constants.go file.
 package config
 
 import (

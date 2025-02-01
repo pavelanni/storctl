@@ -1,4 +1,5 @@
 // Package ssh provides functions to manage local SSH keys.
+// It includes the functions to create, read, delete, and check if a local SSH key pair exists.
 package ssh
 
 import (

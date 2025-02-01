@@ -1,3 +1,5 @@
+// Package mock contains the mock implementation of the provider interface for the storctl tool.
+// It is used for testing purposes.
 package mock
 
 import (

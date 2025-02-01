@@ -1,3 +1,6 @@
+// Package dns contains the DNS provider for the storctl tool.
+// It includes the Cloudflare DNS provider.
+// It also includes the functions to add, get, and delete DNS records.
 package dns
 
 import (
