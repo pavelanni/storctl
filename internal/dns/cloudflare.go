@@ -5,6 +5,7 @@ package dns
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/cloudflare/cloudflare-go"
 )
@@ -17,7 +18,7 @@ type CloudflareDNSProvider struct {
 func NewCloudflareDNS(apiToken string) (*CloudflareDNSProvider, error) {
 	api, err := cloudflare.NewWithAPIToken(apiToken)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error creating Cloudflare API: %w", err)
 	}
 
 	return &CloudflareDNSProvider{
@@ -34,13 +35,16 @@ func (c *CloudflareDNSProvider) AddRecord(zoneID, name, recordType, content stri
 	}
 
 	_, err := c.api.CreateDNSRecord(context.Background(), cloudflare.ZoneIdentifier(zoneID), record)
-	return err
+	if err != nil {
+		return fmt.Errorf("error adding record: %w", err)
+	}
+	return nil
 }
 
 func (c *CloudflareDNSProvider) GetRecord(zoneID, name string) (*cloudflare.DNSRecord, error) {
 	record, err := c.api.GetDNSRecord(context.Background(), cloudflare.ZoneIdentifier(zoneID), name)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting record: %w", err)
 	}
 
 	return &record, nil
@@ -49,11 +53,15 @@ func (c *CloudflareDNSProvider) GetRecord(zoneID, name string) (*cloudflare.DNSR
 func (c *CloudflareDNSProvider) AllRecords(zoneID string) ([]cloudflare.DNSRecord, error) {
 	records, _, err := c.api.ListDNSRecords(context.Background(), cloudflare.ZoneIdentifier(zoneID), cloudflare.ListDNSRecordsParams{})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error listing records: %w", err)
 	}
 	return records, nil
 }
 
 func (c *CloudflareDNSProvider) DeleteRecord(zoneID, recordID string) error {
-	return c.api.DeleteDNSRecord(context.Background(), cloudflare.ZoneIdentifier(zoneID), recordID)
+	err := c.api.DeleteDNSRecord(context.Background(), cloudflare.ZoneIdentifier(zoneID), recordID)
+	if err != nil {
+		return fmt.Errorf("error deleting record: %w", err)
+	}
+	return nil
 }

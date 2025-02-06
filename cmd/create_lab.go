@@ -49,8 +49,8 @@ func NewCreateLabCmd() *cobra.Command {
 
 	defaultTemplate := filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, config.DefaultTemplateDir, "lab.yaml")
 	cmd.Flags().StringVar(&template, "template", defaultTemplate, "lab template to use")
-	cmd.Flags().StringVar(&provider, "provider", "", "provider to use")
-	cmd.Flags().StringVar(&location, "location", config.DefaultLocation, "location to use")
+	cmd.Flags().StringVar(&provider, "provider", config.DefaultLocalProvider, "provider to use")
+	cmd.Flags().StringVar(&location, "location", config.DefaultLocalLocation, "location to use")
 	cmd.Flags().StringVar(&ttl, "ttl", config.DefaultTTL, "ttl to use")
 	cmd.Flags().StringVar(&playbook, "playbook", "site.yml", "playbook to use")
 

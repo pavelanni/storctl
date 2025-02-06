@@ -59,8 +59,8 @@ func NewCreateServerCmd() *cobra.Command {
 	cmd.Flags().StringSliceVar(&sshKeyNames, "ssh-keys", []string{}, "SSH key names to use; if not provided, the admin key will be created")
 	cmd.Flags().StringVar(&serverType, "type", config.DefaultServerType, "Server type")
 	cmd.Flags().StringVar(&image, "image", config.DefaultImage, "Server image")
-	cmd.Flags().StringVar(&provider, "provider", config.DefaultProvider, "Server provider")
-	cmd.Flags().StringVar(&location, "location", config.DefaultLocation, "Server location")
+	cmd.Flags().StringVar(&provider, "provider", config.DefaultLocalProvider, "Server provider")
+	cmd.Flags().StringVar(&location, "location", config.DefaultLocalLocation, "Server location")
 	cmd.Flags().StringVar(&ttl, "ttl", config.DefaultTTL, "Server TTL")
 	cmd.Flags().StringToStringVar(&labels, "labels", map[string]string{}, "Server labels")
 

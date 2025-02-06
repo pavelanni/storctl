@@ -55,7 +55,7 @@ func NewCreateVolumeCmd() *cobra.Command {
 	cmd.Flags().StringToStringVar(&labels, "labels", map[string]string{}, "Volume labels")
 	cmd.Flags().BoolVar(&automount, "automount", false, "Automount the volume")
 	cmd.Flags().StringVar(&format, "format", config.DefaultVolumeFormat, "Volume format")
-	cmd.Flags().StringVar(&provider, "provider", config.DefaultProvider, "Provider")
+	cmd.Flags().StringVar(&provider, "provider", config.DefaultLocalProvider, "Provider")
 	return cmd
 }
 

@@ -25,7 +25,7 @@ func (p *HetznerProvider) CreateVolume(opts options.VolumeCreateOpts) (*types.Vo
 	} else {
 		hCloudServer, _, err = p.Client.Server.GetByName(context.Background(), opts.ServerName)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error getting server: %w", err)
 		}
 		if hCloudServer == nil {
 			return nil, fmt.Errorf("server not found: %s", opts.ServerName)
@@ -36,7 +36,7 @@ func (p *HetznerProvider) CreateVolume(opts options.VolumeCreateOpts) (*types.Vo
 		}
 		hCloudLocation, _, err = p.Client.Location.GetByName(context.Background(), location)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error getting location: %w", err)
 		}
 		if hCloudLocation == nil {
 			return nil, fmt.Errorf("location not found: %s", location)
@@ -59,7 +59,7 @@ func (p *HetznerProvider) CreateVolume(opts options.VolumeCreateOpts) (*types.Vo
 
 	volume, _, err := p.Client.Volume.Create(context.Background(), volumeOpts)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error creating volume: %w", err)
 	}
 	p.logger.Debug("successfully created volume",
 		"name", volumeOpts.Name)
@@ -69,7 +69,7 @@ func (p *HetznerProvider) CreateVolume(opts options.VolumeCreateOpts) (*types.Vo
 func (p *HetznerProvider) AttachVolume(volumeName, serverName string) error {
 	volume, _, err := p.Client.Volume.Get(context.Background(), volumeName)
 	if err != nil {
-		return err
+		return fmt.Errorf("error getting volume: %w", err)
 	}
 	if volume == nil {
 		return fmt.Errorf("volume not found: %s", volumeName)
@@ -79,19 +79,19 @@ func (p *HetznerProvider) AttachVolume(volumeName, serverName string) error {
 	}
 	hCloudServer, _, err := p.Client.Server.GetByName(context.Background(), serverName)
 	if err != nil {
-		return err
+		return fmt.Errorf("error getting server: %w", err)
 	}
 	if hCloudServer == nil {
 		return fmt.Errorf("server not found: %s", serverName)
 	}
 	_, _, err = p.Client.Volume.Attach(context.Background(), volume, hCloudServer)
-	return err
+	return fmt.Errorf("error attaching volume: %w", err)
 }
 
 func (p *HetznerProvider) GetVolume(volumeName string) (*types.Volume, error) {
 	volume, _, err := p.Client.Volume.Get(context.Background(), volumeName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting volume: %w", err)
 	}
 	return p.mapVolume(volume), nil
 }
@@ -103,7 +103,7 @@ func (p *HetznerProvider) ListVolumes(opts options.VolumeListOpts) ([]*types.Vol
 		},
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error listing volumes: %w", err)
 	}
 	return p.mapVolumes(volumes), nil
 }
@@ -111,7 +111,7 @@ func (p *HetznerProvider) ListVolumes(opts options.VolumeListOpts) ([]*types.Vol
 func (p *HetznerProvider) AllVolumes() ([]*types.Volume, error) {
 	volumes, err := p.Client.Volume.All(context.Background())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error listing volumes: %w", err)
 	}
 
 	return p.mapVolumes(volumes), nil
@@ -126,7 +126,7 @@ func (p *HetznerProvider) DeleteVolume(volumeName string, force bool) *types.Vol
 	volume, _, err := p.Client.Volume.Get(context.Background(), volumeName)
 	if err != nil {
 		return &types.VolumeDeleteStatus{
-			Error: err,
+			Error: fmt.Errorf("error getting volume: %w", err),
 		}
 	}
 	if volume == nil {
@@ -145,7 +145,7 @@ func (p *HetznerProvider) DeleteVolume(volumeName string, force bool) *types.Vol
 					"delete_after", deleteAfterStr,
 					"error", err)
 				return &types.VolumeDeleteStatus{
-					Error: err,
+					Error: fmt.Errorf("error parsing delete_after label: %w", err),
 				}
 			}
 			if time.Now().UTC().Before(deleteAfter) {
@@ -166,14 +166,14 @@ func (p *HetznerProvider) DeleteVolume(volumeName string, force bool) *types.Vol
 		_, _, err = p.Client.Volume.Detach(context.Background(), volume)
 		if err != nil {
 			return &types.VolumeDeleteStatus{
-				Error: err,
+				Error: fmt.Errorf("error detaching volume: %w", err),
 			}
 		}
 	}
 	_, err = p.Client.Volume.Delete(context.Background(), volume)
 	if err != nil {
 		return &types.VolumeDeleteStatus{
-			Error: err,
+			Error: fmt.Errorf("error deleting volume: %w", err),
 		}
 	}
 	return &types.VolumeDeleteStatus{

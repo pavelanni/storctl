@@ -77,13 +77,13 @@ func (p *LimaProvider) CreateServer(opts options.ServerCreateOpts) (*types.Serve
 	// Create a Lima config file in the DefaultLimaDir using the provided opts
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting home directory: %w", err)
 	}
 	limaDir := filepath.Join(homeDir, config.DefaultConfigDir, config.DefaultLimaDir)
 	if _, err := os.Stat(limaDir); os.IsNotExist(err) {
 		err = os.MkdirAll(limaDir, 0755)
 		if err != nil {
-			return nil, fmt.Errorf("error creating Lima directory: %v", err)
+			return nil, fmt.Errorf("error creating Lima directory: %w", err)
 		}
 	}
 	limaConfigFile := filepath.Join(limaDir, opts.Name+".yaml")
@@ -103,24 +103,22 @@ func (p *LimaProvider) CreateServer(opts options.ServerCreateOpts) (*types.Serve
 		}
 		server.AdditionalDisks = additionalDisks
 	}
-	// DEBUG
-	fmt.Printf("Additional disks in Lima provider assigned to server: %v\n", server.AdditionalDisks)
 	arch := getArchForArch(p.arch)
 	server.Name = opts.Name
 	server.Image = opts.Image
 	server.Arch = arch
 	limaConfig := createLimaConfig(server)
 	if err := writeConfig(limaConfigFile, limaConfig); err != nil {
-		return nil, fmt.Errorf("error writing config for %s: %v", opts.Name, err)
+		return nil, fmt.Errorf("error writing config for %s: %w", opts.Name, err)
 	}
 
 	if err := createVM(ctx, opts.Name, limaConfigFile); err != nil {
-		return nil, fmt.Errorf("error creating VM for %s: %v", opts.Name, err)
+		return nil, fmt.Errorf("error creating VM for %s: %w", opts.Name, err)
 	}
 
 	newServer, err := p.GetServer(opts.Name)
 	if err != nil {
-		return nil, fmt.Errorf("error getting server for %s: %v", opts.Name, err)
+		return nil, fmt.Errorf("error getting server for %s: %w", opts.Name, err)
 	}
 	return newServer, nil
 }
@@ -181,7 +179,7 @@ func (p *LimaProvider) ListServers(opts options.ServerListOpts) ([]*types.Server
 	cmd := exec.CommandContext(ctx, "limactl", "list", "--json")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("listing servers: %w", err)
+		return nil, fmt.Errorf("error listing servers: %w", err)
 	}
 	servers := []*types.Server{}
 	for _, line := range strings.Split(string(output), "\n") {
@@ -191,7 +189,7 @@ func (p *LimaProvider) ListServers(opts options.ServerListOpts) ([]*types.Server
 		limaServer := Instance{}
 		err := json.Unmarshal([]byte(line), &limaServer)
 		if err != nil {
-			return nil, fmt.Errorf("unmarshalling server: %w", err)
+			return nil, fmt.Errorf("error unmarshalling server: %w", err)
 		}
 		if strings.HasPrefix(limaServer.Name, labName) {
 			server, err := mapServer(limaServer)
@@ -207,7 +205,7 @@ func (p *LimaProvider) ListServers(opts options.ServerListOpts) ([]*types.Server
 func (p *LimaProvider) AllServers() ([]*types.Server, error) {
 	servers, err := p.ListServers(options.ServerListOpts{})
 	if err != nil {
-		return nil, fmt.Errorf("listing servers: %w", err)
+		return nil, fmt.Errorf("error listing servers: %w", err)
 	}
 	return servers, nil
 }
@@ -309,12 +307,12 @@ func createVM(ctx context.Context, name, configPath string) error {
 func writeConfig(filename string, config LimaConfig) error {
 	data, err := yaml.Marshal(config)
 	if err != nil {
-		return fmt.Errorf("marshaling config: %w", err)
+		return fmt.Errorf("error marshaling config: %w", err)
 	}
 
 	err = os.WriteFile(filename, data, 0644)
 	if err != nil {
-		return fmt.Errorf("writing file: %w", err)
+		return fmt.Errorf("error writing file: %w", err)
 	}
 
 	return nil
@@ -323,7 +321,7 @@ func writeConfig(filename string, config LimaConfig) error {
 func mapServer(server Instance) (*types.Server, error) {
 	ip, err := getIPFromVM(server.Name)
 	if err != nil {
-		return nil, fmt.Errorf("error getting IP address for %s: %v", server.Name, err)
+		return nil, fmt.Errorf("error getting IP address for %s: %w", server.Name, err)
 	}
 	return &types.Server{
 		ObjectMeta: types.ObjectMeta{
@@ -399,7 +397,7 @@ func getIPFromVM(vmName string) (string, error) {
 	var interfaces []NetworkInterface
 	err = json.Unmarshal(output, &interfaces)
 	if err != nil {
-		return "", fmt.Errorf("error unmarshalling JSON: %v, output: %s", err, output)
+		return "", fmt.Errorf("error unmarshalling JSON: %w, output: %s", err, output)
 	}
 
 	return interfaces[0].AddrInfo[0].Local, nil

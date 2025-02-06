@@ -1,6 +1,7 @@
 package lima
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -22,7 +23,7 @@ type LimaSSHKey struct {
 func (p *LimaProvider) CreateSSHKey(opts options.SSHKeyCreateOpts) (*types.SSHKey, error) {
 	key, err := p.GetSSHKey("default")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting SSH key: %w", err)
 	}
 	return key, nil
 }
@@ -31,12 +32,12 @@ func (p *LimaProvider) GetSSHKey(name string) (*types.SSHKey, error) {
 	// This always returns the default key located in ~/.lima/_config/user.pub
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting home directory: %w", err)
 	}
 	userKeyPath := filepath.Join(homeDir, limaDir, "_config", "user.pub")
 	userKey, err := os.ReadFile(userKeyPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error reading user key: %w", err)
 	}
 	return mapSSHKey(&LimaSSHKey{Name: "default", PublicKey: string(userKey)}), nil
 }
@@ -44,7 +45,7 @@ func (p *LimaProvider) GetSSHKey(name string) (*types.SSHKey, error) {
 func (p *LimaProvider) ListSSHKeys(opts options.SSHKeyListOpts) ([]*types.SSHKey, error) {
 	defaultKey, err := p.GetSSHKey("default")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting SSH key: %w", err)
 	}
 	keys := []*types.SSHKey{
 		defaultKey,
@@ -55,7 +56,7 @@ func (p *LimaProvider) ListSSHKeys(opts options.SSHKeyListOpts) ([]*types.SSHKey
 func (p *LimaProvider) AllSSHKeys() ([]*types.SSHKey, error) {
 	defaultKey, err := p.GetSSHKey("default")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting SSH key: %w", err)
 	}
 	keys := []*types.SSHKey{
 		defaultKey,
@@ -78,7 +79,7 @@ func (p *LimaProvider) KeyNamesToSSHKeys(keyNames []string, opts options.SSHKeyC
 	// This always returns the default key because the default key is always created
 	defaultKey, err := p.GetSSHKey("default")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting SSH key: %w", err)
 	}
 	return []*types.SSHKey{defaultKey}, nil
 }

@@ -3,8 +3,7 @@ providers:
   token: "your-provider-token-here"
   location: "hel1"
 - name: "lima"
-  token: "your-provider-token-here"
-  location: "us-east-1"
+  location: "local"
 dns:
   provider: "cloudflare"
   domain: "your-domain-here"

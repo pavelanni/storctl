@@ -34,11 +34,11 @@ type Inventory struct {
 
 func (m *ManagerSvc) CreateAnsibleInventoryFile(lab *types.Lab) error {
 	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("error getting home directory: %w", err)
+	}
 	ansibleUser := config.DefaultAdminUser
 	ansibleSSHPrivateKeyFile := filepath.Join(homeDir, config.DefaultConfigDir, config.DefaultKeysDir, strings.Join([]string{lab.ObjectMeta.Name, "admin"}, "-"))
-	if err != nil {
-		return err
-	}
 	if m.Provider.Name() == "lima" {
 		lab.Spec.CertManager = false
 		lab.Spec.LetsEncrypt = "none"
@@ -54,6 +54,7 @@ func (m *ManagerSvc) CreateAnsibleInventoryFile(lab *types.Lab) error {
 		"domain_name":                  config.DefaultDomain,
 		"letsencrypt_environment":      lab.Spec.LetsEncrypt,
 		"cert_manager_enable":          lab.Spec.CertManager,
+		"provider":                     m.Provider.Name(),
 	}
 	ansibleInventoryFile := filepath.Join(homeDir, config.DefaultConfigDir, config.DefaultAnsibleDir, strings.Join([]string{lab.ObjectMeta.Name, "inventory.json"}, "-"))
 
@@ -95,13 +96,13 @@ func (m *ManagerSvc) CreateAnsibleInventoryFile(lab *types.Lab) error {
 
 	jsonData, err := json.MarshalIndent(inventory, "", "  ")
 	if err != nil {
-		return err
+		return fmt.Errorf("error marshalling inventory: %w", err)
 	}
 	m.Logger.Info("Creating Ansible inventory file", "file", ansibleInventoryFile)
 	lab.Spec.Ansible.Inventory = ansibleInventoryFile
 	err = m.Storage.Save(lab)
 	if err != nil {
-		return err
+		return fmt.Errorf("error saving lab: %w", err)
 	}
 	return os.WriteFile(ansibleInventoryFile, jsonData, 0644)
 }
@@ -113,7 +114,7 @@ func (m *ManagerSvc) RunAnsiblePlaybook(lab *types.Lab) error {
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return err
+		return fmt.Errorf("error getting home directory: %w", err)
 	}
 	ansiblePlaybookFile := filepath.Join(homeDir,
 		config.DefaultConfigDir,
@@ -123,7 +124,7 @@ func (m *ManagerSvc) RunAnsiblePlaybook(lab *types.Lab) error {
 	ansibleInventoryFile := lab.Spec.Ansible.Inventory
 	m.Logger.Info("Running Ansible playbook", "playbook", ansiblePlaybookFile, "inventory", ansibleInventoryFile)
 	if err := checkAnsibleAvailable(); err != nil {
-		return err
+		return fmt.Errorf("error checking if ansible-playbook is available: %w", err)
 	}
 	args := []string{
 		"-i", ansibleInventoryFile,
@@ -133,7 +134,7 @@ func (m *ManagerSvc) RunAnsiblePlaybook(lab *types.Lab) error {
 	lab.Spec.Ansible.Playbook = ansiblePlaybookFile
 	err = m.Storage.Save(lab)
 	if err != nil {
-		return err
+		return fmt.Errorf("error saving lab %s: %w", lab.ObjectMeta.Name, err)
 	}
 	cmd := exec.Command("ansible-playbook", args...)
 	cmd.Stdout = os.Stdout

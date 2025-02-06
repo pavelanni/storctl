@@ -65,13 +65,13 @@ func createConfig() error {
 	var defaultCfg config.Config
 	defaultCfg.Providers = []config.ProviderConfig{
 		{
-			Name:     config.DefaultProvider,
-			Location: config.DefaultLocation,
+			Name:     config.DefaultLocalProvider,
+			Location: config.DefaultLocalLocation,
+		},
+		{
+			Name:     config.DefaultCloudProvider,
+			Location: config.DefaultCloudLocation,
 			Token:    config.DefaultToken,
-			Credentials: map[string]string{
-				"username": config.DefaultCredentials,
-				"password": config.DefaultCredentials,
-			},
 		},
 	}
 	defaultCfg.DNS.Provider = config.DefaultDNSProvider
@@ -81,6 +81,8 @@ func createConfig() error {
 	defaultCfg.Email = config.DefaultEmail
 	defaultCfg.Organization = config.DefaultOrganization
 	defaultCfg.Owner = config.DefaultOwner
+	defaultCfg.Storage.Path = filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, config.DefaultLabStorageFile)
+	defaultCfg.Storage.Bucket = config.DefaultLabBucket
 
 	// Marshal the default config to YAML and write it to the default config file
 	cfgBytes, err := yaml.Marshal(defaultCfg)

@@ -52,7 +52,7 @@ func NewRootCmd() *cobra.Command {
 	defaultConfigFile := filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, "config.yaml")
 	cmd.PersistentFlags().StringVar(&cfgFile, "config", defaultConfigFile, "config file")
 	cmd.PersistentFlags().StringVar(&logLevel, "log-level", "warn", "logging level (debug, info, warn, error)")
-	cmd.PersistentFlags().StringVar(&useProvider, "provider", config.DefaultProvider, "Provider to use")
+	cmd.PersistentFlags().StringVar(&useProvider, "provider", config.DefaultLocalProvider, "Provider to use")
 	err := viper.BindPFlag("log_level", cmd.PersistentFlags().Lookup("log-level"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error binding log level flag: %v\n", err)
@@ -96,8 +96,8 @@ func initConfig() {
 	viper.AutomaticEnv()
 	viper.SetEnvPrefix(strings.ToUpper(config.ToolName))
 
-	viper.SetDefault("storage.path", filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, "labs.db"))
-	viper.SetDefault("storage.bucket", "labs")
+	viper.SetDefault("storage.path", filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, config.DefaultLabStorageFile))
+	viper.SetDefault("storage.bucket", config.DefaultLabBucket)
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
@@ -113,6 +113,7 @@ func initConfig() {
 	}
 
 	cfg.LogLevel = viper.GetString("log_level")
+	fmt.Printf("cfg: %+v\n", cfg)
 }
 
 func initProvider(providerName string) error {

@@ -6,8 +6,8 @@ metadata:
     project: aistor
 spec:
   ttl: 24h
-  provider: hetzner
-  location: nbg1
+  provider: lima
+  location: local
   servers:
   - name: cp # control plane server; make sure it ends with 'cp'
     role: control-plane

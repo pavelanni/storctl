@@ -23,7 +23,7 @@ func (p *HetznerProvider) CreateSSHKey(opts options.SSHKeyCreateOpts) (*types.SS
 		Labels:    opts.Labels,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error creating SSH key: %w", err)
 	}
 	return mapSSHKey(sshKey), nil
 }
@@ -33,7 +33,7 @@ func (p *HetznerProvider) GetSSHKey(name string) (*types.SSHKey, error) {
 		"key", name)
 	sshKey, _, err := p.Client.SSHKey.GetByName(context.Background(), name)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting SSH key: %w", err)
 	}
 	if sshKey == nil {
 		p.logger.Debug("SSH key not found",
@@ -53,7 +53,7 @@ func (p *HetznerProvider) ListSSHKeys(opts options.SSHKeyListOpts) ([]*types.SSH
 		},
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error listing SSH keys: %w", err)
 	}
 	return mapSSHKeys(sshKeys), nil
 }
@@ -76,7 +76,7 @@ func (p *HetznerProvider) DeleteSSHKey(name string, force bool) *types.SSHKeyDel
 	keyExists, err := p.CloudKeyExists(name)
 	if err != nil {
 		return &types.SSHKeyDeleteStatus{
-			Error: err,
+			Error: fmt.Errorf("error checking if SSH key exists: %w", err),
 		}
 	}
 	if !keyExists {
@@ -92,7 +92,7 @@ func (p *HetznerProvider) DeleteSSHKey(name string, force bool) *types.SSHKeyDel
 		p.logger.Error("failed to get SSH key",
 			"key", name)
 		return &types.SSHKeyDeleteStatus{
-			Error: err,
+			Error: fmt.Errorf("error getting SSH key: %w", err),
 		}
 	}
 
@@ -117,6 +117,9 @@ func (p *HetznerProvider) DeleteSSHKey(name string, force bool) *types.SSHKeyDel
 	if err != nil {
 		p.logger.Error("failed to delete cloud SSH key",
 			"key", name)
+		return &types.SSHKeyDeleteStatus{
+			Error: fmt.Errorf("error deleting SSH key: %w", err),
+		}
 	}
 	return &types.SSHKeyDeleteStatus{
 		Deleted: true,
@@ -148,7 +151,7 @@ func (p *HetznerProvider) KeyNamesToSSHKeys(keyNames []string, opts options.SSHK
 	for _, keyName := range keyNames {
 		cloudKeyExists, err := p.CloudKeyExists(keyName)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error checking if SSH key exists: %w", err)
 		}
 		if !cloudKeyExists {
 			// check if the key exists locally

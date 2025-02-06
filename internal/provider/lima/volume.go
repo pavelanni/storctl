@@ -26,7 +26,7 @@ func (p *LimaProvider) CreateVolume(opts options.VolumeCreateOpts) (*types.Volum
 	sizeStr := fmt.Sprintf("%dGiB", opts.Size)
 	err := createDisk(ctx, diskName, sizeStr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error creating disk: %w", err)
 	}
 	volume := &types.Volume{
 		ObjectMeta: types.ObjectMeta{
@@ -46,12 +46,12 @@ func (p *LimaProvider) GetVolume(name string) (*types.Volume, error) {
 	listCmd := exec.CommandContext(ctx, "limactl", "disk", "list", "--json", name)
 	output, err := listCmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("error listing disks: %v, output: %s", err, output)
+		return nil, fmt.Errorf("error listing disks: %w, output: %s", err, output)
 	}
 	disk := &ConfigDisk{}
 	err = json.Unmarshal(output, disk)
 	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling disk: %v", err)
+		return nil, fmt.Errorf("error unmarshalling disk: %w", err)
 	}
 	return p.mapVolume(disk), nil
 }
@@ -68,7 +68,7 @@ func (p *LimaProvider) ListVolumes(opts options.VolumeListOpts) ([]*types.Volume
 	listCmd := exec.CommandContext(ctx, "limactl", "disk", "list", "--json")
 	output, err := listCmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("error listing disks: %v, output: %s", err, output)
+		return nil, fmt.Errorf("error listing disks: %w, output: %s", err, output)
 	}
 	disks := []*ConfigDisk{}
 	for _, line := range strings.Split(string(output), "\n") {
@@ -78,7 +78,7 @@ func (p *LimaProvider) ListVolumes(opts options.VolumeListOpts) ([]*types.Volume
 		disk := &ConfigDisk{}
 		err = json.Unmarshal([]byte(line), disk)
 		if err != nil {
-			return nil, fmt.Errorf("error unmarshalling disk %s: %v", line, err)
+			return nil, fmt.Errorf("error unmarshalling disk %s: %w", line, err)
 		}
 		if strings.HasPrefix(disk.Name, labName) {
 			disks = append(disks, disk)
@@ -101,12 +101,12 @@ func (p *LimaProvider) DeleteVolume(name string, force bool) *types.VolumeDelete
 		if ctx.Err() == context.DeadlineExceeded {
 			return &types.VolumeDeleteStatus{
 				Deleted: false,
-				Error:   fmt.Errorf("timeout while deleting disk: %v", err),
+				Error:   fmt.Errorf("timeout while deleting disk: %w", err),
 			}
 		}
 		return &types.VolumeDeleteStatus{
 			Deleted: false,
-			Error:   fmt.Errorf("error deleting disk: %v, output: %s", err, output),
+			Error:   fmt.Errorf("error deleting disk: %w, output: %s", err, output),
 		}
 	}
 	return &types.VolumeDeleteStatus{Deleted: true}
@@ -118,7 +118,7 @@ func createDisk(ctx context.Context, diskName, size string) error {
 	listCmd := exec.CommandContext(ctx, "limactl", "disk", "list")
 	output, err := listCmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("error listing disks: %v, output: %s", err, output)
+		return fmt.Errorf("error listing disks: %w, output: %s", err, output)
 	}
 
 	// If disk is in the list, skip creation
@@ -132,9 +132,9 @@ func createDisk(ctx context.Context, diskName, size string) error {
 	output, err = createCmd.CombinedOutput()
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
-			return fmt.Errorf("timeout while creating disk: %v", err)
+			return fmt.Errorf("timeout while creating disk: %w", err)
 		}
-		return fmt.Errorf("error creating disk: %v, output: %s", err, output)
+		return fmt.Errorf("error creating disk: %w, output: %s", err, output)
 	}
 
 	fmt.Printf("Created disk %s of size %s\n", diskName, size)

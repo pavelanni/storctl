@@ -58,14 +58,20 @@ const (
 
 // Provider related constants
 const (
-	// DefaultProvider is the default provider
-	DefaultProvider = "lima"
+	// DefaultLocalProvider is the default provider for a local machine
+	DefaultLocalProvider = "lima"
+
+	// DefaultLocalLocation is the default location
+	DefaultLocalLocation = "local"
+
+	// DefaultCloudProvider is the default cloud provider
+	DefaultCloudProvider = "hetzner"
+
+	// DefaultCloudLocation is the default cloud location
+	DefaultCloudLocation = "nbg1"
 
 	// DefaultDomain is the default domain
 	DefaultDomain = "aistorlabs.com"
-
-	// DefaultLocation is the default location
-	DefaultLocation = "nbg1"
 
 	// DefaultAdminKeyName is the default SSH key name
 	DefaultAdminKeyName = "aistor-admin"
@@ -136,49 +142,5 @@ power_state:
   mode: reboot
   message: Rebooting after package upgrades
   condition: test -f /var/run/reboot-required
-`
-)
-
-// Lab template related constants
-const (
-	// DefaultLabTemplate is the default lab template
-	DefaultLabTemplate = `apiVersion: v1
-kind: Lab
-metadata:
-  name: aistor-lab
-  labels:
-    project: aistor
-spec:
-  ttl: 24h
-  provider: hetzner
-  location: nbg1
-  servers:
-  - name: cp
-    type: cx22
-    image: ubuntu-24.04
-  - name: node-01
-    type: cx22
-    image: ubuntu-24.04
-  volumes:
-  - name: volume-01
-    server: node-01
-    size: 100
-    automount: false
-    format: xfs
-  - name: volume-02
-    server: node-01
-    size: 100
-    automount: false
-    format: xfs
-  - name: volume-03
-    server: node-01
-    size: 100
-    automount: false
-    format: xfs
-  - name: volume-04
-    server: node-01
-    size: 100
-    automount: false
-    format: xfs
 `
 )

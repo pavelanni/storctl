@@ -29,7 +29,7 @@ func (p *HetznerProvider) CreateServer(opts options.ServerCreateOpts) (*types.Se
 	for _, sshKey := range opts.SSHKeys {
 		hCloudKey, _, err := p.Client.SSHKey.Get(context.Background(), sshKey.ObjectMeta.Name)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error getting SSH key: %w", err)
 		}
 		hCloudSSHKeys = append(hCloudSSHKeys, hCloudKey)
 	}
@@ -45,7 +45,7 @@ func (p *HetznerProvider) CreateServer(opts options.ServerCreateOpts) (*types.Se
 		"ssh_keys", sshKeyNames)
 	server, _, err := p.Client.Server.Create(context.Background(), serverOpts)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error creating server: %w", err)
 	}
 	p.logger.Debug("successfully created server",
 		"name", opts.Name,
@@ -57,7 +57,7 @@ func (p *HetznerProvider) CreateServer(opts options.ServerCreateOpts) (*types.Se
 func (p *HetznerProvider) GetServer(serverName string) (*types.Server, error) {
 	server, _, err := p.Client.Server.Get(context.Background(), serverName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting server: %w", err)
 	}
 	return p.mapServer(server), nil
 }
@@ -69,7 +69,7 @@ func (p *HetznerProvider) ListServers(opts options.ServerListOpts) ([]*types.Ser
 		},
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error listing servers: %w", err)
 	}
 	return p.mapServers(servers), nil
 }
@@ -77,7 +77,7 @@ func (p *HetznerProvider) ListServers(opts options.ServerListOpts) ([]*types.Ser
 func (p *HetznerProvider) AllServers() ([]*types.Server, error) {
 	servers, err := p.Client.Server.All(context.Background())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error listing servers: %w", err)
 	}
 
 	return p.mapServers(servers), nil
@@ -92,7 +92,7 @@ func (p *HetznerProvider) DeleteServer(serverName string, force bool) *types.Ser
 	server, _, err := p.Client.Server.Get(context.Background(), serverName)
 	if err != nil {
 		return &types.ServerDeleteStatus{
-			Error: err,
+			Error: fmt.Errorf("error getting server: %w", err),
 		}
 	}
 	if server == nil {
@@ -127,14 +127,14 @@ func (p *HetznerProvider) DeleteServer(serverName string, force bool) *types.Ser
 		_, _, err = p.Client.Volume.Detach(context.Background(), volume)
 		if err != nil {
 			return &types.ServerDeleteStatus{
-				Error: err,
+				Error: fmt.Errorf("error detaching volume: %w", err),
 			}
 		}
 	}
 	_, _, err = p.Client.Server.DeleteWithResult(context.Background(), server)
 	if err != nil {
 		return &types.ServerDeleteStatus{
-			Error: err,
+			Error: fmt.Errorf("error deleting server: %w", err),
 		}
 	}
 	return &types.ServerDeleteStatus{
@@ -147,7 +147,7 @@ func (p *HetznerProvider) ServerToCreateOpts(server *types.Server) (options.Serv
 		Labels: server.ObjectMeta.Labels,
 	})
 	if err != nil {
-		return options.ServerCreateOpts{}, err
+		return options.ServerCreateOpts{}, fmt.Errorf("error converting SSH keys: %w", err)
 	}
 	cloudInitUserData := fmt.Sprintf(config.DefaultCloudInitUserData, sshKeys[0].Spec.PublicKey)
 	return options.ServerCreateOpts{
