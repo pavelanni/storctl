@@ -34,3 +34,6 @@ dist/
 
 # Scratch space
 scratch/
+
+# Ansible
+.ansible/

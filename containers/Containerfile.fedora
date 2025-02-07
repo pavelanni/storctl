@@ -1,6 +1,13 @@
 # Start with Fedora base image
 FROM registry.fedoraproject.org/fedora:41-x86_64
 
+# Pin versions
+ENV KUBECTL_VERSION=v1.32.1
+ENV HELM_VERSION=v3.17.0
+ENV HCLOUD_VERSION=v1.50.0
+ENV KREW_VERSION=v0.4.4
+
+
 # Set labels for better container management
 LABEL maintainer="Pavel Anni <pavel@min.io>"
 LABEL description="AIStor CLI with storctl, Ansible, and Hetzner Cloud CLI"
@@ -25,43 +32,74 @@ RUN dnf update -y \
     openssl \
     && dnf clean all
 
+RUN useradd -m -s /bin/bash -G wheel aistor
+RUN echo '%wheel ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+
 # Install kubectl
-RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
+RUN cd /tmp && \
+    curl -fsSLO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" && \
+    curl -fsSLO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256" && \
+    echo "$(cat kubectl.sha256) kubectl" | sha256sum --check && \
     chmod +x kubectl && \
-    mv kubectl /usr/local/bin/
-
-# Install Krew
-RUN (cd /tmp && curl -fsSL https://github.com/kubernetes-sigs/krew/releases/latest/download/krew-linux_amd64.tar.gz | tar xz) && \
-    /tmp/krew-linux_amd64 install krew && \
-    echo "export PATH=\$PATH:~/.krew/bin" >> /root/.bashrc
-
+    mv kubectl /usr/local/bin/ && \
+    rm -f /tmp/kubectl.sha256
 
 # Install Helm
-RUN curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+RUN cd /tmp && \
+    curl -fsSLO https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz && \
+    curl -fsSLO "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz.sha256sum" && \
+    sha256sum -c helm-${HELM_VERSION}-linux-amd64.tar.gz.sha256sum && \
+    tar -xzf helm-${HELM_VERSION}-linux-amd64.tar.gz && \
+    mv linux-amd64/helm /usr/local/bin/ && \
+    chmod +x /usr/local/bin/helm && \
+    rm -rf linux-amd64
 
 # Install Ansible and Kubernetes Python library
 RUN pip3 install --no-cache-dir ansible kubernetes
 
 # Install Hetzner Cloud CLI
-RUN wget -O /tmp/hcloud.tar.gz https://github.com/hetznercloud/cli/releases/latest/download/hcloud-linux-amd64.tar.gz && \
-    tar -xzf /tmp/hcloud.tar.gz -C /tmp && \
-    mv /tmp/hcloud /usr/local/bin/ && \
+RUN cd /tmp && \
+    curl -fsSLO https://github.com/hetznercloud/cli/releases/download/${HCLOUD_VERSION}/hcloud-linux-amd64.tar.gz && \
+    curl -fsSLO "https://github.com/hetznercloud/cli/releases/download/${HCLOUD_VERSION}/checksums.txt" && \
+    grep "hcloud-linux-amd64.tar.gz" checksums.txt | sha256sum --check && \
+    tar -xzf hcloud-linux-amd64.tar.gz && \
+    mv hcloud /usr/local/bin/ && \
     chmod +x /usr/local/bin/hcloud && \
-    rm -f /tmp/hcloud.tar.gz
+    rm -f *
 
 # Create working directory
-WORKDIR /workspace
+RUN mkdir -p /workspace && \
+    chown -R aistor:aistor /workspace
 
 # Set environment variables
 ENV ANSIBLE_HOST_KEY_CHECKING=False
 
-# Install DirectPV plugin for kubectl
-ENV PATH="${PATH}:/root/.krew/bin"
-RUN kubectl krew install directpv
 
 # Install storctl
 COPY ./dist/storctl_linux_amd64_v1/storctl /usr/local/bin/storctl
 RUN chmod +x /usr/local/bin/storctl
+
+USER aistor
+
+# Install Krew
+ENV KREW_ROOT=/home/aistor/.krew
+ENV PATH="${PATH}:${KREW_ROOT}/bin"
+
+RUN mkdir -p ${KREW_ROOT}
+
+RUN cd /tmp && \
+    curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/download/${KREW_VERSION}/krew-linux_amd64.tar.gz" && \
+    curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/download/${KREW_VERSION}/krew-linux_amd64.tar.gz.sha256" && \
+    echo "$(cat krew-linux_amd64.tar.gz.sha256) krew-linux_amd64.tar.gz" | sha256sum --check && \
+    tar -xzf krew-linux_amd64.tar.gz && \
+    ./krew-linux_amd64 install krew && \
+    rm -rf krew-linux_amd64 krew-linux_amd64.tar.gz krew-linux_amd64.tar.gz.sha256 && \
+    echo "export PATH=\$PATH:${KREW_ROOT}/bin" >> /home/aistor/.bashrc
+
+# Install DirectPV plugin for kubectl
+RUN kubectl krew install directpv
+
+WORKDIR /workspace
 
 # Default command
 CMD ["/bin/bash"]

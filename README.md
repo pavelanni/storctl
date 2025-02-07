@@ -16,26 +16,96 @@ The main focus of this tool is on MinIO AIStor testing, training, and demonstrat
 
 ### Prerequisites
 
-- Go 1.23 or later
-- If using Lima:
-  - Lima installed on your macOS (via Homebrew)
-  - 16 GB RAM min, 32 GB preferred
-- If using cloud:
-  - A Hetzner Cloud account and API token
-  - A Cloudflare account and API token (for DNS management)
+#### For both deployments
 
-### Using released binaries
+1. `kubectl` is installed. If it's not installed on your machine, follow these [instructions](https://kubernetes.io/docs/tasks/tools/#kubectl)
 
-Download binaries for your OS/arch from the Releases page.
+1. Krew is installed. If it's not installed, follow these [instructions](https://krew.sigs.k8s.io/docs/user-guide/setup/install/)
+
+1. DirectPV plugin is installed. If it's not installed, follow these [instructions](https://min.io/docs/directpv/installation/#install-directpv-plugin-with-krew)
+
+1. Helm is installed. If it's not installed on your machine, follow these [instructions](https://helm.sh/docs/intro/install/).
+   On a Mac, the easiest way is to use `brew install helm`.
+
+#### For local deployment
+
+Local AIStor installation uses Lima to manage virtual machines, QEMU as a virtualization engine, and `socket_vmnet` for the network.
+We have to use QEMU with `socket_vmnet` shared network to allow the VMs to talk to each other and being able to access the VMs from the host.
+
+1. Install Lima.
+
+   ```shell
+   brew install lima
+   ```
+
+1. Install QEMU
+
+   ```shell
+   brew install qemu
+   ```
+
+1. Check if you have already installed Xcode command tools (which is very likely)
+
+   ```shell
+   xcode-select -p
+   ```
+
+   Expected output:
+
+   ```none
+   /Library/Developer/CommandLineTools
+   ```
+
+   If it's not installed, run:
+
+   ```shell
+   xcode-select --install
+   ```
+
+1. Build and install the network driver for `socket_vmnet`. The full instructions and explanation is provided on the official [Lima site](https://lima-vm.io/docs/config/network/#socket_vmnet).
+   Here is a short version of it:
+
+   ```shell
+   # Install socket_vmnet as root from source to /opt/socket_vmnet
+   # using instructions on https://github.com/lima-vm/socket_vmnet
+   # This assumes that Xcode Command Line Tools are already installed
+   git clone https://github.com/lima-vm/socket_vmnet
+   cd socket_vmnet
+   # Change "v1.2.1" to the actual latest release in https://github.com/lima-vm/socket_vmnet/releases
+   git checkout v1.2.1
+   make
+   sudo make PREFIX=/opt/socket_vmnet install.bin
+
+   # Set up the sudoers file for launching socket_vmnet from Lima
+   limactl sudoers >etc_sudoers.d_lima
+   less etc_sudoers.d_lima  # verify that the file looks correct
+   sudo install -o root etc_sudoers.d_lima /etc/sudoers.d/lima
+   rm etc_sudoers.d_lima
+   ```
+
+1. Note: Lima might give you an error message about the `docker.sock` file.
+   In that case, just delete the file mentioned in the error message.
+
+#### For cloud deployment
+
+1. Get a Hetzner Cloud account and API token. Ask the Traning team for access to the MinIO shared project.
+
+1. Get a Cloudflare account and API token (for DNS management) from the Training team.
+   You don't need it if you prefer to use your own domain.
+
+### Using released binaries (recommended)
+
+Download binaries for your OS/arch from the [Releases](https://github.com/pavelanni/storctl/releases) page.
 
 ### Building from source
 
 ```bash
 git clone https://github.com/pavelanni/storctl
 cd storctl
-go build .
+go build -o storctl .
+# Move the resulting binary to your PATH
+mv storctl $HOME/.local/bin # or any other directory in your PATH
 ```
-
 
 ## Configuration
 
@@ -82,7 +152,7 @@ owner: "your-name"
 storctl config view
 
 # Create a new lab environment
-storctl create lab mylab --template lab-edge.yaml
+storctl create lab mylab --template lab.yaml
 
 # List all labs
 storctl get lab

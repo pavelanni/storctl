@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: Lab
+metadata:
+  name: aistor-lab
+  labels:
+    project: aistor
+spec:
+  ttl: 1h
+  provider: lima
+  location: local
+  servers:
+  - name: cp
+    type: cx22
+    image: ubuntu-24.04
+  - name: node-01
+    type: cx22
+    image: ubuntu-24.04
+  - name: node-02
+    type: cx22
+    image: ubuntu-24.04
+  volumes:
+  - name: volume-01
+    server: node-01
+    size: 200
+    automount: false
+    format: xfs
+  - name: volume-02
+    server: node-01
+    size: 200
+    automount: false
+    format: xfs
+  - name: volume-03
+    server: node-01
+    size: 200
+    automount: false
+    format: xfs
+  - name: volume-04
+    server: node-01
+    size: 200
+    automount: false
+    format: xfs
+  - name: volume-05
+    server: node-02
+    size: 200
+    automount: false
+    format: xfs
+  - name: volume-06
+    server: node-02
+    size: 200
+    automount: false
+    format: xfs
+  - name: volume-07
+    server: node-02
+    size: 200
+    automount: false
+    format: xfs
+  - name: volume-08
+    server: node-02
+    size: 200
+    automount: false
+    format: xfs
+  ansible:
+    playbook: site.yml

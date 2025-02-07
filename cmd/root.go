@@ -113,7 +113,6 @@ func initConfig() {
 	}
 
 	cfg.LogLevel = viper.GetString("log_level")
-	fmt.Printf("cfg: %+v\n", cfg)
 }
 
 func initProvider(providerName string) error {
