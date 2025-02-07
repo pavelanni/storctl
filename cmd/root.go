@@ -5,6 +5,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -40,7 +41,11 @@ func NewRootCmd() *cobra.Command {
 			if cmd.Name() == "init" {
 				return nil
 			}
-
+			// Check if prerequisites are met
+			if err := checkPrerequisites(useProvider); err != nil {
+				fmt.Fprintf(os.Stderr, "Prerequisites not met: %v\n", err)
+				os.Exit(1)
+			}
 			// Continue with other initializations
 			initConfig()
 			initDNS()
@@ -70,6 +75,45 @@ func NewRootCmd() *cobra.Command {
 	)
 
 	return cmd
+}
+
+func checkPrerequisites(provider string) error {
+	// Check if kubectl is installed
+	if _, err := exec.LookPath("kubectl"); err != nil {
+		return fmt.Errorf("kubectl is not installed. Please follow the instructions at https://kubernetes.io/docs/tasks/tools/#kubectl")
+	}
+
+	// Check if helm is installed
+	if _, err := exec.LookPath("helm"); err != nil {
+		return fmt.Errorf("helm is not installed. Please follow the instructions at https://helm.sh/docs/intro/install/")
+	}
+
+	// Check if krew is installed
+	if _, err := exec.LookPath("kubectl-krew"); err != nil {
+		return fmt.Errorf("krew is not installed. Please follow the instructions at https://krew.sigs.k8s.io/docs/user-guide/setup/install/")
+	}
+
+	// Check if directpv is installed
+	if _, err := exec.LookPath("kubectl-directpv"); err != nil {
+		return fmt.Errorf("directpv is not installed. Please follow the instructions at https://min.io/docs/directpv/installation/#install-directpv-plugin-with-krew")
+	}
+
+	if provider == "lima" {
+		// Check if lima is installed
+		if _, err := exec.LookPath("limactl"); err != nil {
+			return fmt.Errorf("lima is not installed. Please follow the instructions at https://lima-vm.io/docs/installation/")
+		}
+		//Check if socket_vmnet is installed
+		if _, err := os.Stat("/opt/socket_vmnet/bin/socket_vmnet"); err != nil {
+			return fmt.Errorf("socket_vmnet is not installed. Please follow the instructions at https://lima-vm.io/docs/config/network/#socket_vmnet")
+		}
+		// Check if sudoers file is present
+		if _, err := os.Stat("/etc/sudoers.d/lima"); err != nil {
+			return fmt.Errorf("sudoers file for Lima is not present. Please follow the instructions at https://lima-vm.io/docs/config/network/#socket_vmnet")
+		}
+	}
+
+	return nil
 }
 
 func initConfig() {
