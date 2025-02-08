@@ -286,13 +286,13 @@ func (m *ManagerSvc) getLabFromProvider(labName string) (*types.Lab, error) {
 	// Add labels from the first server
 	if len(servers) > 0 {
 		lab.ObjectMeta.Labels = servers[0].ObjectMeta.Labels
+		lab.Status.State = servers[0].Status.Status
+		lab.Status.Owner = servers[0].Status.Owner
+		lab.Status.Created = servers[0].Status.Created
+		lab.Status.DeleteAfter = servers[0].Status.DeleteAfter
+		lab.Spec.Location = servers[0].Spec.Location
+		lab.Spec.Provider = servers[0].Spec.Provider
 	}
-	lab.Status.State = servers[0].Status.Status
-	lab.Status.Owner = servers[0].Status.Owner
-	lab.Status.Created = servers[0].Status.Created
-	lab.Status.DeleteAfter = servers[0].Status.DeleteAfter
-	lab.Spec.Location = servers[0].Spec.Location
-	lab.Spec.Provider = servers[0].Spec.Provider
 	return lab, nil
 }
 
