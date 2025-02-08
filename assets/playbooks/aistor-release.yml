@@ -1,14 +1,15 @@
 - name: Deploy aistor
-  hosts: localhost
+  hosts: control_plane[0]
+  become: true
   gather_facts: false
 
   tasks:
     - name: Deploy aistor release
       shell: |
-        kubectl --kubeconfig={{ kubeconfig }} apply -k https://min.io/k8s/aistor
+        kubectl --kubeconfig=/home/{{ ansible_user }}/.kube/config apply -k https://min.io/k8s/aistor
 
     - name: Create aistor ingress
       kubernetes.core.k8s:
         state: present
-        kubeconfig: "{{ kubeconfig }}"
+        kubeconfig: /home/{{ ansible_user }}/.kube/config
         template: aistor-ingress.yaml.j2

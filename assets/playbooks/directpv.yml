@@ -1,18 +1,29 @@
 - name: Deploy directpv
-  hosts: localhost
-  gather_facts: false
+  hosts: control_plane[0]
+  become: false
+  gather_facts: true
   vars:
-    drives_file: "{{ playbook_dir }}/drives.yaml"
+    drives_file: "{{ ansible_env.HOME }}/drives.yaml"
+  environment:
+    PATH: "{{ ansible_env.HOME }}/.krew/bin:{{ ansible_env.PATH }}"
+    KUBECONFIG: "{{ ansible_env.HOME }}/.kube/config"
 
   tasks:
-    - name: Install directpv
+    - name: Install directpv Krew plugin
       ansible.builtin.command:
-        cmd: kubectl directpv install --kubeconfig={{ kubeconfig }} --node-selector directpv=yes
+        cmd: kubectl krew install directpv
+
+    - name: Install directpv on the worker nodes
+      ansible.builtin.command:
+        cmd: kubectl directpv install --node-selector directpv=yes
 
     - name: Discover directpv drives
       ansible.builtin.command:
-        cmd: kubectl directpv discover --kubeconfig={{ kubeconfig }} --output-file={{ drives_file }}
+        cmd: kubectl directpv discover --output-file={{ drives_file }}
+      register: discover_result
+      ignore_errors: true
 
     - name: Initialize directpv drives
       ansible.builtin.command:
-        cmd: kubectl directpv init --kubeconfig={{ kubeconfig }} --dangerous {{ drives_file }}
+        cmd: kubectl directpv init --dangerous {{ drives_file }}
+      when: discover_result.rc == 0

@@ -1,0 +1,32 @@
+- name: Display final messages
+  hosts: localhost
+  gather_facts: true
+  environment:
+    ANSIBLE_STDOUT_CALLBACK: debug
+  tasks:
+
+    - name: Debug - Display inventory file
+      ansible.builtin.debug:
+        var: ansible_inventory_sources[0]
+
+    - name: Inform user about configuration locations
+      ansible.builtin.debug:
+        msg: |
+          Configuration files have been created:
+
+          Kubeconfig: {{ kubeconfig | realpath }}
+          You can use it by running: export KUBECONFIG={{ kubeconfig | realpath }}
+
+          Inventory: {{ ansible_inventory_sources[0] }}
+          You can use it with: -i {{ ansible_inventory_sources[0] }}
+
+- name: Store configuration locations
+  hosts: localhost
+  gather_facts: true
+  tasks:
+    - name: Save configuration paths
+      ansible.builtin.set_stats:
+        data:
+          kubeconfig_path: "{{ kubeconfig | realpath }}"
+          inventory_file: "{{ ansible_inventory_sources[0] }}"
+        per_host: no

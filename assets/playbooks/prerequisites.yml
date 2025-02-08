@@ -1,8 +1,29 @@
 ---
+- name: Set fact for architecture
+  hosts: control_plane
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Set fact amd64 on x86_64
+      ansible.builtin.set_fact:
+        arch: amd64
+      when: ansible_architecture == "x86_64"
+
+    - name: Set fact arm64 on aarch64
+      ansible.builtin.set_fact:
+        arch: arm64
+      when: ansible_architecture == "aarch64"
+
 - name: Configure K3s nodes
-  hosts: all
+  hosts: control_plane:nodes
   become: true
   tasks:
+    - name: Make sure /tmp is world writable with sticky bit
+      ansible.builtin.file:
+        path: /tmp
+        mode: 01777
+
     # Common tasks for all nodes
     - name: Set hostname
       ansible.builtin.hostname:
@@ -37,8 +58,6 @@
       ansible.builtin.package:
         name: "{{ base_packages }}"
         state: present
-      when: inventory_hostname in groups['control_plane']
-      tags: [packages, control_plane]
 
     - name: Get latest kubectl version
       ansible.builtin.command: curl -L -s https://dl.k8s.io/release/stable.txt
@@ -49,7 +68,7 @@
 
     - name: Download kubectl
       ansible.builtin.get_url:
-        url: "https://dl.k8s.io/release/{{ kubectl_stable_version.stdout }}/bin/linux/amd64/kubectl"
+        url: "https://dl.k8s.io/release/{{ kubectl_stable_version.stdout }}/bin/linux/{{ arch }}/kubectl"
         dest: /usr/local/bin/kubectl
         mode: "0755"
       when: inventory_hostname in groups['control_plane']
@@ -57,7 +76,7 @@
 
     - name: Download MinIO client
       ansible.builtin.get_url:
-        url: https://dl.min.io/client/mc/release/linux-amd64/mc
+        url: https://dl.min.io/client/mc/release/linux-{{ arch }}/mc
         dest: /usr/local/bin/mc
         mode: "0755"
       when: inventory_hostname in groups['control_plane']
@@ -67,7 +86,14 @@
       ansible.builtin.get_url:
         url: https://github.com/minio/warp/releases/download/v1.0.6/warp_Linux_x86_64.tar.gz
         dest: /tmp/warp.tar.gz
-      when: inventory_hostname in groups['control_plane']
+      when: inventory_hostname in groups['control_plane'] and ansible_architecture == "x86_64"
+      tags: [tools, control_plane]
+
+    - name: Donwload warp tool
+      ansible.builtin.get_url:
+        url: https://github.com/minio/warp/releases/download/v1.0.6/warp_Linux_arm64.tar.gz
+        dest: /tmp/warp.tar.gz
+      when: inventory_hostname in groups['control_plane'] and ansible_architecture == "aarch64"
       tags: [tools, control_plane]
 
     - name: Extract warp tool

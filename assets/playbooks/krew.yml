@@ -1,0 +1,69 @@
+- name: Set fact for architecture
+  hosts: control_plane
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Set fact amd64 on x86_64
+      ansible.builtin.set_fact:
+        arch: amd64
+      when: ansible_architecture == "x86_64"
+
+    - name: Set fact arm64 on aarch64
+      ansible.builtin.set_fact:
+        arch: arm64
+      when: ansible_architecture == "aarch64"
+
+- name: Install Krew
+  hosts: control_plane
+  become: false
+  gather_facts: true
+
+  tasks:
+    - name: Clean up existing Krew files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+        force: true
+      with_items:
+        - "/tmp/krew.tar.gz"
+        - "/tmp/krew-linux_{{ arch }}"
+        - "/tmp/LICENSE"
+      become: true
+
+    - name: Download Krew
+      ansible.builtin.uri:
+        url: https://github.com/kubernetes-sigs/krew/releases/download/v0.4.4/krew-linux_{{ arch }}.tar.gz
+        dest: /tmp/krew.tar.gz
+        mode: 0755
+        remote_src: true
+        creates: /tmp/krew.tar.gz
+
+    - name: Extract Krew
+      ansible.builtin.unarchive:
+        src: /tmp/krew.tar.gz
+        dest: /tmp/
+        remote_src: true
+        extra_opts:
+          - --no-same-owner
+
+    - name: Install Krew
+      ansible.builtin.command:
+        cmd: /tmp/krew-linux_{{ arch }} install krew
+
+    - name: Add Krew to PATH
+      ansible.builtin.lineinfile:
+        path: "{{ ansible_user_dir }}/.bashrc"
+        line: 'export PATH="{{ ansible_user_dir }}/.krew/bin:$PATH"'
+        state: present
+        create: true
+
+    - name: Clean up temporary files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      with_fileglob:
+        - /tmp/krew*
+        - /tmp/LICENSE
+        - /tmp/README.md
+

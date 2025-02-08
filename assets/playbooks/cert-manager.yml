@@ -1,8 +1,23 @@
 - name: Install cert-manager and configure HTTP-01 ClusterIssuer
-  hosts: localhost
+  hosts: control_plane[0]
+  become: true
   gather_facts: false
 
   tasks:
+    - name: Download Helm command line tool
+      ansible.builtin.uri:
+        url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        return_content: true
+      register: helm_installer
+
+    - name: Install Helm
+      ansible.builtin.command:
+        cmd: bash
+        stdin: "{{ helm_installer.content }}"
+        creates: /usr/local/bin/helm
+      environment:
+        DESIRED_VERSION: "{{ helm_version | default('') }}"
+
     - name: Add Jetstack Helm repo
       kubernetes.core.helm_repository:
         name: jetstack
@@ -14,7 +29,7 @@
         chart_ref: jetstack/cert-manager
         release_namespace: cert-manager
         create_namespace: true
-        kubeconfig: "{{ kubeconfig }}"
+        kubeconfig: "{{ ansible_user_dir }}/.kube/config"
         values:
           crds:
             enabled: true
@@ -27,7 +42,7 @@
         kind: Deployment
         name: cert-manager-webhook
         namespace: cert-manager
-        kubeconfig: "{{ kubeconfig }}"
+        kubeconfig: "{{ ansible_user_dir }}/.kube/config"
         wait: true
         wait_timeout: 300
         wait_condition:
@@ -38,7 +53,7 @@
     - name: Create ClusterIssuer for Let's Encrypt with HTTP-01 challenge for {{ letsencrypt_environment }} environment
       kubernetes.core.k8s:
         state: present
-        kubeconfig: "{{ kubeconfig }}"
+        kubeconfig: "{{ ansible_user_dir }}/.kube/config"
         definition:
           apiVersion: cert-manager.io/v1
           kind: ClusterIssuer

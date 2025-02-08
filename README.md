@@ -222,6 +222,24 @@ All resources support:
 - Provider-specific configurations
 - YAML/JSON manifest files
 
+## Known issues
+
+1. In multi-node configurations (with more than one worker node in the cluster) sometimes DirectPV doesn't discover
+   drives on all nodes properly. Before starting using AIStor after installation, check DirectPV status with this command:
+
+   ```shell
+   kubectl directpv info
+   ```
+
+   If in the output you don't see all your nodes and drives, re-run the discovery and initialization commands:
+
+   ```shell
+   kubectl directpv discover
+   kubectl directpv init drives.yaml --dangerous
+   ```
+
+   And check the status again with the `kubectl directpv info` command.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.

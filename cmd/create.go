@@ -119,7 +119,7 @@ func processResource(resource *types.Resource) error {
 func convertToStruct(in interface{}, out interface{}) error {
 	jsonBytes, err := json.Marshal(in)
 	if err != nil {
-		return err
+		return fmt.Errorf("error marshaling to JSON: %w", err)
 	}
 	return json.Unmarshal(jsonBytes, out)
 }

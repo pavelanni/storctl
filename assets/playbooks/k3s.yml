@@ -36,11 +36,11 @@
 
 - name: Configure kubectl on control plane
   hosts: control_plane[0]
-  become: true
+  become: false
   tasks:
     - name: Create .kube directory
       ansible.builtin.file:
-        path: /home/{{ ansible_user }}/.kube
+        path: "{{ ansible_user_dir }}/.kube"
         state: directory
         mode: "0755"
         owner: "{{ ansible_user }}"
@@ -49,56 +49,55 @@
     - name: Copy kubeconfig to user home
       ansible.builtin.copy:
         src: /etc/rancher/k3s/k3s.yaml
-        dest: /home/{{ ansible_user }}/.kube/config
+        dest: "{{ ansible_user_dir }}/.kube/config"
         remote_src: yes
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
         mode: "0600"
+      become: true
 
     - name: Update kubeconfig server address
       ansible.builtin.replace:
-        path: /home/{{ ansible_user }}/.kube/config
+        path: "{{ ansible_user_dir }}/.kube/config"
         regexp: "https://127.0.0.1:6443"
         replace: "https://{{ ansible_host }}:6443"
 
+    - name: Ensure kubeconfig directory exists
+      ansible.builtin.file:
+        path: "{{ lookup('env', 'HOME') }}/.storctl/kubeconfigs"
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+      run_once: true
+      become: false
+
     - name: Fetch kubeconfig to Ansible control host
       ansible.builtin.fetch:
-        src: /home/{{ ansible_user }}/.kube/config
-        dest: "./{{ lab_name }}-kubeconfig"
+        src: "{{ ansible_user_dir }}/.kube/config"
+        dest: "{{ kubeconfig }}"
         flat: yes
       become: false
 
 - name: Apply labels and taints to Kubernetes nodes
-  hosts: localhost
-  connection: local
-  become: no
-
+  hosts: control_plane[0]
+  become: false
   tasks:
-    - name: Print kubeconfig path
-      debug:
-        var: kubeconfig
-
-    - name: Print deployment name
-      debug:
-        var: lab_name
-
     - name: Check if kubeconfig file exists
       stat:
-        path: "{{ kubeconfig }}"
+        path: "{{ ansible_user_dir }}/.kube/config"
       register: kubeconfig_file
 
     - name: Fail if kubeconfig file does not exist
       fail:
-        msg: "Kubeconfig file not found at {{ kubeconfig }}"
+        msg: "Kubeconfig file not found at {{ ansible_user_dir }}/.kube/config"
       when: not kubeconfig_file.stat.exists
 
     - name: Apply labels to Kubernetes nodes
       kubernetes.core.k8s:
         kind: Node
         name: "{{ item }}"
-        kubeconfig: "{{ kubeconfig }}"
+        kubeconfig: "{{ ansible_user_dir }}/.kube/config"
         definition:
-          api_version: v1
           metadata:
             labels:
               directpv: "yes"
@@ -106,7 +105,7 @@
 
     - name: Apply taint to Kubernetes control plane node
       kubernetes.core.k8s_taint:
-        kubeconfig: "{{ kubeconfig }}"
+        kubeconfig: "{{ ansible_user_dir }}/.kube/config"
         state: present
         name: "{{ hostvars[groups['control_plane'][0]]['inventory_hostname'] }}"
         taints:

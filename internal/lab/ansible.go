@@ -128,6 +128,7 @@ func (m *ManagerSvc) RunAnsiblePlaybook(lab *types.Lab) error {
 	}
 	args := []string{
 		"-i", ansibleInventoryFile,
+		"--extra-vars", fmt.Sprintf("inventory_path=%s", ansibleInventoryFile),
 		ansiblePlaybookFile,
 	}
 
@@ -139,6 +140,7 @@ func (m *ManagerSvc) RunAnsiblePlaybook(lab *types.Lab) error {
 	cmd := exec.Command("ansible-playbook", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Env = append(os.Environ(), "ANSIBLE_STDOUT_CALLBACK=debug")
 
 	return cmd.Run()
 }

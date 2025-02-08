@@ -5,7 +5,11 @@
   import_playbook: k3s.yml
 - name: Install ingress-nginx
   import_playbook: ingress-nginx.yml
+- name: Install Krew
+  import_playbook: krew.yml
 - name: Install and initialize directpv
   import_playbook: directpv.yml
 - name: Install AIStor
   import_playbook: aistor-release.yml
+- name: Display final messages
+  import_playbook: final.yml

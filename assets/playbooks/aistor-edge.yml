@@ -1,18 +1,19 @@
 - name: Deploy aistor
-  hosts: localhost
+  hosts: control_plane[0]
+  become: true
   gather_facts: false
 
   tasks:
     - name: Deploy aistor CRDs
       shell: |
-        kubectl --kubeconfig={{ kubeconfig }} apply -f http://ns-3.k1.min.dev/dev/crds.yaml
+        kubectl --kubeconfig="{{ ansible_user_dir }}/.kube/config" apply -f http://ns-3.k1.min.dev/dev/crds.yaml
 
     - name: Deploy aistor resources
       shell: |
-        kubectl --kubeconfig={{ kubeconfig }} apply -f http://ns-3.k1.min.dev/dev/aistor.yaml
+        kubectl --kubeconfig="{{ ansible_user_dir }}/.kube/config" apply -f http://ns-3.k1.min.dev/dev/aistor.yaml
 
     - name: Create aistor ingress
       kubernetes.core.k8s:
         state: present
-        kubeconfig: "{{ kubeconfig }}"
+        kubeconfig: "{{ ansible_user_dir }}/.kube/config"
         template: aistor-ingress.yaml.j2
