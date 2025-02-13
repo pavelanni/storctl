@@ -128,16 +128,17 @@ This creates a default configuration directory at `~/.storctl` with the followin
 ```yaml
 providers:
   - name: "hetzner"
-    token: "your-hetzner-token"
+    token: "your-hetzner-token" # add your Hetzner Cloud token if you are going to use cloud installation
     location: "nbg1" # EU locations: nbd1, fsn1, hel1; US locations: ash, hil; APAC locations: sin
   - name: "lima"
 
-dns:
+dns: # this section is not used by local installation
   provider: "cloudflare"
-  token: "your-cloudflare-token"
-  zone_id: "your-zone-id"
+  token: "your-cloudflare-token" # add your Cloudflare token if you're going to use cloud installation
+  zone_id: "your-zone-id" # add your Cloudflare Zone ID if you're going to use cloud installation
   domain: "aistorlabs.com" # feel free to use your own domain
 
+# this section is not used by local installation
 email: "your-email@example.com"
 organization: "your-organization"
 owner: "your-name"
@@ -163,19 +164,19 @@ storctl get lab mylab
 # Delete a lab
 storctl delete lab mylab
 
-# Create a new SSH key
+# Create a new SSH key (you need it only for cloud installation)
 storctl create key mykey
 
-# Create a new server
+# Create a new server (usually servers are created automatically)
 storctl create server myserver
 
-# Create a new volume
+# Create a new volume (usually volumes are created automatically)
 storctl create volume myvolume
 ```
 
 ### Using resource YAML files
 
-You can also create resources using YAML definition files:
+You can also create resources using YAML definition files. Those files use a format used by Kubernetes manifests.
 
 ```bash
 storctl create -f lab.yaml
@@ -212,6 +213,123 @@ volumes:
     automount: false
     format: xfs
 ```
+
+## After AIStor installation
+
+1. At the end of the Ansible playbook output find the location of the Kubernetes config file.
+   It should include the phrase "You can use it by running: export KUBECONFIG=".
+   Copy the file path and run the command mentioned above:
+
+   ```shell
+   export KUBECONFIG=$HOME/.storctl/kubeconfigs/mylab-kubeconfig
+   ```
+
+1. Check if you can see the cluster nodes:
+
+   ```shell
+   kubectl get nodes
+   ```
+
+   Expected output:
+
+   ```none
+   NAME            STATUS   ROLES                  AGE     VERSION
+   mylab-cp        Ready    control-plane,master   6m55s   v1.31.5+k3s1
+   mylab-node-01   Ready    <none>                 6m48s   v1.31.5+k3s1
+   ```
+
+1. Check if the AIStor pod is running:
+
+   ```shell
+   kubectl get pod -n aistor
+   ```
+
+   Expected output:
+
+   ```none
+   NAME       READY   STATUS    RESTARTS   AGE
+   aistor-0   1/1     Running   0          20s
+   ```
+
+
+1. Check if the AIStor service has been created:
+
+   ```shell
+   kubectl get svc -n aistor
+   ```
+
+   Expected output:
+
+   ```none
+   NAME        TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)             AGE
+   aistor      ClusterIP   10.43.182.85   <none>        8444/TCP,7899/TCP   70s
+   aistor-hl   ClusterIP   None           <none>        8444/TCP,7899/TCP   70s
+   ```
+
+1. Run the `port-forward` command to be able to access the cluster from the browser:
+
+   ```shell
+   kubectl port-forward -n aistor svc/aistor 8444:8444
+   ```
+
+   Expected output:
+
+   ```none
+   Forwarding from 127.0.0.1:8444 -> 8444
+   Forwarding from [::1]:8444 -> 8444
+   ```
+
+   Don't close this terminal session and keep it running while configuring AIStor.
+
+1. Open the URL: `http://localhost:8444` in the browser. You should see the first AIStor page where you should enter the license.
+
+1. Enter the license key. If you don't have it, obtain it from your MinIO representative.
+
+1. Create the first user that will the the cluster admin.
+
+   ![First AIStor user](images/first_aistor_user.png)
+
+1. Create your first object store. Answer "**No**" to both questions (about drive manager and encryption).
+
+   ![Don't use drive manager](images/dont_use_drive_manager.png)
+
+   1. Configure the object store according to the cluster configuration you created.
+      For example, if you have one worker node and four drives (the default `lab.yaml`), enter those parameters in the fields.
+      Set the total storage to 100 GiB.
+
+      ![First object store parameters](images/first_parameters.png)
+
+1. Add a user to the Object Store you just created. Click **Access** in the menu:
+
+   ![Access](images/access.png)
+
+   And create the admin user. Assign the `consoleAdmin` policy to that user.
+
+   ![Create admin user](images/create_admin_user.png)
+
+1. Add an an Inbound traffic configuration to access the cluster via NodePort. Click **Inbound Traffic** in the menu:
+
+   ![Inbound Traffic](images/inbound_traffic.png)
+
+   Enable Direct Access. Set the port for Object API to 30001 and for Console UI to 31001.
+
+   ![Direct access ports](images/direct_access_ports.png)
+
+1. In another terminal session (not the one running the `kubectl port-forward` command) create a new alias for the first Object Store.
+   Use the credentials you give the first user. In the example below the user is `admin` and the password is `learn-by-doing`.
+
+   ```shell
+   export MC_INSECURE=true
+   mc alias set aistor-first https://localhost:30001 admin learn-by-doing
+   ```
+
+1. Open this URL in your browser: `https://localhost:31001`
+
+1. Enter your `admin` user credentials in the login form. These is the user you created in the first Object Store, NOT the first user you created after installing AIStor.
+
+   ![Console login](images/console_login.png)
+
+1. Use the Object Store console the usual way.
 
 ## Resource management
 

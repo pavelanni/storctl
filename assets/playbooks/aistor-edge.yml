@@ -1,7 +1,7 @@
 - name: Deploy aistor
   hosts: control_plane[0]
-  become: true
-  gather_facts: false
+  become: false
+  gather_facts: true
 
   tasks:
     - name: Deploy aistor CRDs
