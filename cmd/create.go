@@ -12,15 +12,21 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
+type CreateOpts struct {
+	SkipDNS     bool
+	SkipInstall bool
+}
+
 func NewCreateCmd() *cobra.Command {
 	var filename string
+	opts := CreateOpts{}
 
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create resources (key, server, volume, lab)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if filename != "" {
-				return createFromFile(filename)
+				return createFromFile(filename, opts)
 			}
 			return fmt.Errorf("either -f flag or a resource type must be specified")
 		},
@@ -28,6 +34,8 @@ func NewCreateCmd() *cobra.Command {
 
 	// Add -f flag
 	cmd.Flags().StringVarP(&filename, "filename", "f", "", "Path to the YAML manifest file")
+	cmd.Flags().BoolVar(&opts.SkipDNS, "skip-dns", false, "skip DNS records creation")
+	cmd.Flags().BoolVar(&opts.SkipInstall, "skip-install", false, "skip lab installation")
 
 	// Add subcommands for direct resource creation
 	cmd.AddCommand(
@@ -40,7 +48,7 @@ func NewCreateCmd() *cobra.Command {
 	return cmd
 }
 
-func createFromFile(filename string) error {
+func createFromFile(filename string, opts CreateOpts) error {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return fmt.Errorf("error reading file: %w", err)
@@ -57,7 +65,7 @@ func createFromFile(filename string) error {
 			return fmt.Errorf("error decoding YAML: %w", err)
 		}
 
-		if err := processResource(resource); err != nil {
+		if err := processResource(resource, opts); err != nil {
 			return err
 		}
 	}
@@ -65,7 +73,7 @@ func createFromFile(filename string) error {
 	return nil
 }
 
-func processResource(resource *types.Resource) error {
+func processResource(resource *types.Resource, opts CreateOpts) error {
 	switch resource.Kind {
 	case "Server":
 		server := types.Server{
@@ -105,7 +113,7 @@ func processResource(resource *types.Resource) error {
 		if err := convertToStruct(resource.Spec, &lab.Spec); err != nil {
 			return fmt.Errorf("error parsing Lab spec: %w", err)
 		}
-		_, err := createLab(lab)
+		_, err := createLab(lab, opts)
 		if err != nil {
 			return err
 		}

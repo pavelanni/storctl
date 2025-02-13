@@ -24,6 +24,7 @@ func NewCreateLabCmd() *cobra.Command {
 		location string
 		ttl      string
 		playbook string
+		opts     CreateOpts
 	)
 
 	cmd := &cobra.Command{
@@ -39,7 +40,7 @@ func NewCreateLabCmd() *cobra.Command {
 			if provider != "" {
 				lab.Spec.Provider = provider // override the provider in the template
 			}
-			_, err = createLab(lab)
+			_, err = createLab(lab, opts)
 			if err != nil {
 				return fmt.Errorf("error creating lab: %w", err)
 			}
@@ -53,11 +54,13 @@ func NewCreateLabCmd() *cobra.Command {
 	cmd.Flags().StringVar(&location, "location", config.DefaultLocalLocation, "location to use")
 	cmd.Flags().StringVar(&ttl, "ttl", config.DefaultTTL, "ttl to use")
 	cmd.Flags().StringVar(&playbook, "playbook", "site.yml", "playbook to use")
+	cmd.Flags().BoolVar(&opts.SkipDNS, "skip-dns", false, "skip DNS records creation")
+	cmd.Flags().BoolVar(&opts.SkipInstall, "skip-install", false, "skip lab installation")
 
 	return cmd
 }
 
-func createLab(lab *types.Lab) (*types.Lab, error) {
+func createLab(lab *types.Lab, opts CreateOpts) (*types.Lab, error) {
 	lab.ObjectMeta.Labels["owner"] = labelutil.SanitizeValue(cfg.Owner)
 	lab.ObjectMeta.Labels["organization"] = labelutil.SanitizeValue(cfg.Organization)
 	lab.ObjectMeta.Labels["email"] = labelutil.SanitizeValue(cfg.Email)
@@ -96,11 +99,15 @@ func createLab(lab *types.Lab) (*types.Lab, error) {
 	}
 	lab.Status = labUpdated.Status
 
-	if lab.Spec.Provider != "lima" { // we don't need DNS records for local VMs
+	if lab.Spec.Provider != "lima" && !opts.SkipDNS { // we don't need DNS records for local VMs
 		fmt.Printf("Lab %s: Creating DNS records...\n", lab.ObjectMeta.Name)
 		if err := addDNSRecords(lab); err != nil {
 			return nil, err
 		}
+	}
+	if opts.SkipInstall {
+		fmt.Printf("Lab %s: Skipping lab software installation.\n", lab.ObjectMeta.Name)
+		return lab, nil
 	}
 	fmt.Printf("Lab %s: Creating ansible inventory file...\n", lab.ObjectMeta.Name)
 	err = labSvc.CreateAnsibleInventoryFile(lab)
