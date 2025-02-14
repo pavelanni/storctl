@@ -4,11 +4,12 @@ import "github.com/spf13/cobra"
 
 func NewInstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "install",
-		Short: "Install software in the environment",
-		Args:  cobra.ExactArgs(1),
+		Use:                   "install",
+		Short:                 "Install software in the environment",
+		DisableFlagsInUseLine: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return nil
+			// Show help message if no subcommand is provided
+			return cmd.Help()
 		},
 	}
 

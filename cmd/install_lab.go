@@ -24,17 +24,20 @@ func NewInstallLabCmd() *cobra.Command {
 	opts := InstallLabOpts{}
 
 	cmd := &cobra.Command{
-		Use:   "lab",
+		Use:   "lab LAB_NAME",
 		Short: "Install software in a lab",
-		Args:  cobra.ExactArgs(1),
+		Long:  "Install software in a lab by running Ansible playbook",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("lab name is required")
+			}
 			return installLab(args[0], opts)
 		},
 	}
 
 	cmd.Flags().StringVarP(&opts.Inventory, "inventory", "i", "", "path to the inventory file")
-	cmd.Flags().StringVar(&opts.Playbook, "playbook", "site.yml", "path to the playbook file")
-	cmd.Flags().BoolVarP(&opts.CreateInventory, "create-inventory", "c", false, "create the inventory file")
+	cmd.Flags().StringVarP(&opts.Playbook, "playbook", "p", "site.yml", "path to the playbook file")
+	//	cmd.Flags().BoolVarP(&opts.CreateInventory, "create-inventory", "c", false, "create the inventory file")
 
 	return cmd
 }
