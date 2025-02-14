@@ -167,10 +167,12 @@ type SSHKeyExistsStatus struct {
 }
 
 type AnsibleSpec struct {
-	ConfigFile string `json:"configFile"`
-	Inventory  string `json:"inventory"`
-	Playbook   string `json:"playbook"`
-	User       string `json:"user"`
+	ConfigFile        string `json:"configFile"`
+	Inventory         string `json:"inventory"`
+	InventoryFullPath string `json:"inventoryFullPath"`
+	Playbook          string `json:"playbook"`
+	PlaybookFullPath  string `json:"playbookFullPath"`
+	User              string `json:"user"`
 }
 
 // Resource represents the common fields for all resources
