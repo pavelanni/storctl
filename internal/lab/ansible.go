@@ -108,6 +108,7 @@ func (m *ManagerSvc) CreateAnsibleInventoryFile(lab *types.Lab) error {
 }
 
 func (m *ManagerSvc) RunAnsiblePlaybook(lab *types.Lab) error {
+	var ansiblePlaybookFile, ansibleInventoryFile string
 	if lab.Spec.Ansible.Playbook == "" {
 		return fmt.Errorf("ansible playbook not set")
 	}
@@ -116,12 +117,23 @@ func (m *ManagerSvc) RunAnsiblePlaybook(lab *types.Lab) error {
 	if err != nil {
 		return fmt.Errorf("error getting home directory: %w", err)
 	}
-	ansiblePlaybookFile := filepath.Join(homeDir,
-		config.DefaultConfigDir,
-		config.DefaultAnsibleDir,
-		"playbooks",
-		lab.Spec.Ansible.Playbook)
-	ansibleInventoryFile := lab.Spec.Ansible.Inventory
+	if !filepath.IsAbs(lab.Spec.Ansible.Playbook) {
+		ansiblePlaybookFile = filepath.Join(homeDir,
+			config.DefaultConfigDir,
+			config.DefaultAnsibleDir,
+			"playbooks",
+			lab.Spec.Ansible.Playbook)
+	} else {
+		ansiblePlaybookFile = lab.Spec.Ansible.Playbook
+	}
+	if !filepath.IsAbs(lab.Spec.Ansible.Inventory) {
+		ansibleInventoryFile = filepath.Join(homeDir,
+			config.DefaultConfigDir,
+			config.DefaultAnsibleDir,
+			lab.Spec.Ansible.Inventory)
+	} else {
+		ansibleInventoryFile = lab.Spec.Ansible.Inventory
+	}
 	m.Logger.Info("Running Ansible playbook", "playbook", ansiblePlaybookFile, "inventory", ansibleInventoryFile)
 	if err := checkAnsibleAvailable(); err != nil {
 		return fmt.Errorf("error checking if ansible-playbook is available: %w", err)
@@ -132,7 +144,8 @@ func (m *ManagerSvc) RunAnsiblePlaybook(lab *types.Lab) error {
 		ansiblePlaybookFile,
 	}
 
-	lab.Spec.Ansible.Playbook = ansiblePlaybookFile
+	lab.Spec.Ansible.PlaybookFullPath = ansiblePlaybookFile
+	lab.Spec.Ansible.InventoryFullPath = ansibleInventoryFile
 	err = m.Storage.Save(lab)
 	if err != nil {
 		return fmt.Errorf("error saving lab %s: %w", lab.ObjectMeta.Name, err)

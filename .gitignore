@@ -37,3 +37,6 @@ scratch/
 
 # Ansible
 .ansible/
+
+.DS_Store
+drives.yaml
