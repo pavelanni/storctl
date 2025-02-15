@@ -120,6 +120,8 @@ func (p *LimaProvider) CreateServer(opts options.ServerCreateOpts) (*types.Serve
 	if err != nil {
 		return nil, fmt.Errorf("error getting server for %s: %w", opts.Name, err)
 	}
+	newServer.Status.Created = time.Now()
+	newServer.Status.DeleteAfter = time.Now() // as soon as it's Lima, you are free to delete it any time
 	return newServer, nil
 }
 

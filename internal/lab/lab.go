@@ -97,15 +97,33 @@ func NewManager(provider provider.CloudProvider, cfg *config.Config) (*ManagerSv
 func (m *ManagerSvc) Create(lab *types.Lab) error {
 	switch lab.Spec.Provider {
 	case "lima":
-		return m.createLabLima(lab)
+		err := m.createLabLima(lab)
+		if err != nil {
+			return fmt.Errorf("failed to create lab: %w", err)
+		}
 	case "hetzner":
-		return m.createLabHetzner(lab)
+		err := m.createLabHetzner(lab)
+		if err != nil {
+			return fmt.Errorf("failed to create lab: %w", err)
+		}
+	}
+	m.Logger.Debug("created lab", "lab", lab)
+	m.Logger.Debug("lab servers:")
+	for _, server := range lab.Status.Servers {
+		m.Logger.Debug("server", "server", server)
+	}
+	m.Logger.Debug("lab volumes:")
+	for _, volume := range lab.Status.Volumes {
+		m.Logger.Debug("volume", "volume", volume)
+	}
+	err := m.Storage.Save(lab)
+	if err != nil {
+		return fmt.Errorf("failed to save lab: %w", err)
 	}
 	return nil
 }
 
 func (m *ManagerSvc) Get(labName string) (*types.Lab, error) {
-	// DEBUG
 	if m == nil {
 		return nil, fmt.Errorf("manager is nil")
 	}
@@ -298,9 +316,10 @@ func (m *ManagerSvc) getLabFromProvider(labName string) (*types.Lab, error) {
 
 func (m *ManagerSvc) createLabLima(lab *types.Lab) error {
 	volumes := lab.Spec.Volumes
-	for _, volume := range volumes {
+	volumesStatus := make([]*types.Volume, len(volumes))
+	for i, volume := range volumes {
 		fmt.Printf("Creating volume %s of size %dGB...\n", strings.Join([]string{lab.ObjectMeta.Name, volume.Name}, "-"), volume.Size)
-		_, err := m.Provider.CreateVolume(options.VolumeCreateOpts{
+		volume, err := m.Provider.CreateVolume(options.VolumeCreateOpts{
 			Name:       strings.Join([]string{lab.ObjectMeta.Name, volume.Name}, "-"),
 			Size:       volume.Size,
 			ServerName: volume.Server,
@@ -311,8 +330,14 @@ func (m *ManagerSvc) createLabLima(lab *types.Lab) error {
 		if err != nil {
 			return fmt.Errorf("failed to create volume: %w", err)
 		}
+		volumesStatus[i] = volume
+		m.Logger.Debug("created volume", "volume", volume)
 	}
-
+	lab.Status.Volumes = volumesStatus
+	m.Logger.Debug("created volumes:")
+	for _, volume := range volumesStatus {
+		m.Logger.Debug("volume", "volume", volume)
+	}
 	additionalDisks := make(map[string][]options.AdditionalDisk)
 	for _, volume := range volumes {
 		labServerName := strings.Join([]string{lab.ObjectMeta.Name, volume.Server}, "-")
@@ -322,7 +347,8 @@ func (m *ManagerSvc) createLabLima(lab *types.Lab) error {
 		})
 	}
 	specServers := lab.Spec.Servers
-	for _, serverSpec := range specServers {
+	serversStatus := make([]*types.Server, len(specServers))
+	for i, serverSpec := range specServers {
 		s := &types.Server{
 			TypeMeta: types.TypeMeta{
 				Kind:       "Server",
@@ -344,7 +370,7 @@ func (m *ManagerSvc) createLabLima(lab *types.Lab) error {
 			serverAdditionalDisks = []options.AdditionalDisk{}
 		}
 		fmt.Printf("Creating server %s with additional disks: %v\n", s.ObjectMeta.Name, serverAdditionalDisks)
-		_, err := m.Provider.CreateServer(options.ServerCreateOpts{
+		server, err := m.Provider.CreateServer(options.ServerCreateOpts{
 			Name:            s.ObjectMeta.Name,
 			Type:            s.Spec.ServerType,
 			Image:           s.Spec.Image,
@@ -356,6 +382,13 @@ func (m *ManagerSvc) createLabLima(lab *types.Lab) error {
 		if err != nil {
 			return fmt.Errorf("failed to create server: %w", err)
 		}
+		m.Logger.Debug("created server", "server", server)
+		serversStatus[i] = server
+	}
+	lab.Status.Servers = serversStatus
+	m.Logger.Debug("created servers:")
+	for _, server := range serversStatus {
+		m.Logger.Debug("server", "server", server)
 	}
 	return nil
 }
