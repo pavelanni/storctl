@@ -35,6 +35,10 @@ func (p *LimaProvider) CreateVolume(opts options.VolumeCreateOpts) (*types.Volum
 		Spec: types.VolumeSpec{
 			Size: opts.Size,
 		},
+		Status: types.VolumeStatus{
+			Created:     time.Now(),
+			DeleteAfter: time.Now(),
+		},
 	}
 	return volume, nil
 }
