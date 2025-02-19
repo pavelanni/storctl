@@ -333,6 +333,9 @@ func mapServer(server Instance) (*types.Server, error) {
 			Image: server.Config.Images[0].Location,
 		},
 		Status: types.ServerStatus{
+			Cores:  server.CPUs,
+			Memory: float32(server.Memory) / 1024 / 1024 / 1024,
+			Disk:   int(server.Disk) / 1024 / 1024 / 1024,
 			PublicNet: &types.PublicNet{
 				FQDN: server.Name,
 				IPv4: &struct {
@@ -403,4 +406,37 @@ func getIPFromVM(vmName string) (string, error) {
 	}
 
 	return interfaces[0].AddrInfo[0].Local, nil
+}
+
+func getStatusFromVM(vmName string) (Instance, error) {
+	listCmd := exec.Command("limactl", "status", vmName)
+	output, err := listCmd.CombinedOutput()
+	if err != nil {
+		return Instance{}, fmt.Errorf("error listing VMs: %v, output: %s", err, output)
+	}
+	var instance Instance
+	err = json.Unmarshal(output, &instance)
+	if err != nil {
+		return Instance{}, fmt.Errorf("error unmarshalling JSON: %w, output: %s", err, output)
+	}
+	return instance, nil
+}
+
+func bytesToHuman(bytes int64) string {
+	const (
+		kb = 1024
+		mb = kb * 1024
+		gb = mb * 1024
+		tb = gb * 1024
+	)
+	if bytes < kb {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	if bytes < mb {
+		return fmt.Sprintf("%.2f MiB", float64(bytes)/mb)
+	}
+	if bytes < gb {
+		return fmt.Sprintf("%.2f GiB", float64(bytes)/gb)
+	}
+	return fmt.Sprintf("%.2f TiB", float64(bytes)/tb)
 }
