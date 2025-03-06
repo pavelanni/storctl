@@ -54,6 +54,9 @@ const (
 
 	// DefaultLimaDir is the default directory for storing lima VM configs
 	DefaultLimaDir = "lima"
+
+	// DefaultVirtDir is the default directory for storing libvirt VM configs
+	DefaultVirtDir = "virt"
 )
 
 // Provider related constants

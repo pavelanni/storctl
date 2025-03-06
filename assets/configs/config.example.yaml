@@ -4,6 +4,8 @@ providers:
   location: "hel1"
 - name: "lima"
   location: "local"
+- name: "virt"
+  location: "local"
 dns:
   provider: "cloudflare"
   domain: "your-domain-here"
