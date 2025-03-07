@@ -1,0 +1,14 @@
+<volume type='file'>
+  <name>{{.VolumeName}}</name>
+  <key>{{.VolumePath}}</key>
+  <capacity unit='bytes'>{{.VolumeSize}}</capacity>
+  <target>
+    <path>{{.VolumePath}}</path>
+    <format type='qcow2'/>
+    <permissions>
+      <mode>{{.VolumeMode}}</mode>
+      <owner>{{.VolumeOwner}}</owner>
+      <group>{{.VolumeGroup}}</group>
+    </permissions>
+  </target>
+</volume>

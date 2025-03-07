@@ -5,7 +5,7 @@ import (
 )
 
 // These types are to create a libvirt config XML file
-type VMConfig struct {
+type DomainConfig struct {
 	Name        string
 	VCPU        string
 	Memory      string

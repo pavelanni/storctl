@@ -12,3 +12,6 @@ var PlaybookFiles embed.FS
 
 //go:embed templates/*
 var TemplateFiles embed.FS
+
+//go:embed virt/templates/*
+var VirtTemplateFiles embed.FS

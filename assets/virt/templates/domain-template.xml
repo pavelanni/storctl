@@ -1,0 +1,44 @@
+<domain type='kvm'>
+  <name>{{ .VMName }}</name>
+  <memory unit='GiB'>{{ .Memory | default "2" }}</memory>
+  <vcpu>{{ .VCPU | default "2" }}</vcpu>
+  <os>
+    <type arch='x86_64'>hvm</type>
+    <boot dev='hd'/>
+  </os>
+  <features>
+    <acpi/>
+    <apic/>
+  </features>
+  <cpu mode='host-model'/>
+  <clock offset='utc'/>
+  <devices>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2'/>
+      <source file='/var/lib/libvirt/images/disk-{{ .VMName }}.qcow2'/>
+      <target dev='vda' bus='virtio'/>
+    </disk>
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source file='/var/lib/libvirt/images/cloud-init-{{ .VMName }}.iso'/>
+      <target dev='sda' bus='sata'/>
+      <readonly/>
+    </disk>
+    <interface type='network'>
+      <source network='{{ .Network | default "custom" }}'/>
+      <model type='virtio'/>
+    </interface>
+    <console type='pty'>
+      <target type='serial' port='0'/>
+    </console>
+    <graphics type='vnc' port='-1' autoport='yes' listen='{{ .VNCListen | default "127.0.0.1" }}'>
+      <listen type='address' address='{{ .VNCListen | default "127.0.0.1" }}'/>
+    </graphics>
+    <video>
+      <model type='virtio'/>
+    </video>
+    <channel type='unix'>
+      <target type='virtio' name='org.qemu.guest_agent.0'/>
+    </channel>
+  </devices>
+</domain>

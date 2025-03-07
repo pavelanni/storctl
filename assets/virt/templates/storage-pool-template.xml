@@ -1,0 +1,14 @@
+<pool type='dir'>
+  <name>{{.PoolName}}</name>
+  <source>
+    <dir path="{{.PoolPath}}" />
+  </source>
+  <target>
+    <path>{{.PoolPath}}</path>
+    <permissions>
+      <mode>{{.PoolMode}}</mode>
+      <owner>{{.PoolOwner}}</owner>
+      <group>{{.PoolGroup}}</group>
+    </permissions>
+  </target>
+</pool>

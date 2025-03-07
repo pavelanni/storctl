@@ -27,6 +27,9 @@ func NewInitCmd() *cobra.Command {
 			if err := createTemplates(overwrite); err != nil {
 				return fmt.Errorf("error creating templates: %w", err)
 			}
+			if err := createVirtTemplates(overwrite); err != nil {
+				return fmt.Errorf("error creating virt templates: %w", err)
+			}
 			if err := createDefaultKeysDir(); err != nil {
 				return fmt.Errorf("error creating default keys directory: %w", err)
 			}
@@ -121,6 +124,31 @@ func createTemplates(overwrite bool) error {
 		fmt.Printf("Templates directory already exists at %s\n", templatesDir)
 	}
 	return initializeFiles(assets.TemplateFiles, "templates", templatesDir, overwrite)
+}
+
+func createVirtTemplates(overwrite bool) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("error getting home directory: %w", err)
+	}
+	configDir := filepath.Join(home, config.DefaultConfigDir)
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		err = os.MkdirAll(configDir, 0755)
+		if err != nil {
+			return fmt.Errorf("error creating config directory: %w", err)
+		}
+	}
+	virtTemplatesDir := filepath.Join(configDir, config.DefaultVirtDir, config.DefaultTemplateDir)
+	if _, err := os.Stat(virtTemplatesDir); os.IsNotExist(err) {
+		err = os.MkdirAll(virtTemplatesDir, 0755)
+		if err != nil {
+			return fmt.Errorf("error creating virt templates directory: %w", err)
+		}
+		fmt.Printf("Virt templates directory created at %s\n", virtTemplatesDir)
+	} else {
+		fmt.Printf("Virt templates directory already exists at %s\n", virtTemplatesDir)
+	}
+	return initializeFiles(assets.VirtTemplateFiles, "virt/templates", virtTemplatesDir, overwrite)
 }
 
 func createPlaybooks(overwrite bool) error {
