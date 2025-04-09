@@ -331,6 +331,43 @@ volumes:
 
 1. Use the Object Store console the usual way.
 
+## Starting and stopping
+
+If you reboot your Mac you Lima VMs will stop. You have to start them to continue using the lab.
+Run this command to list all VMs:
+
+```shell
+limactl list
+```
+
+Expected output:
+
+```none
+NAME             STATUS     SSH            VMTYPE    ARCH       CPUS    MEMORY    DISK     DIR
+mylab-cp         Stopped    127.0.0.1:0    qemu      aarch64    2       4GiB      40GiB    ~/.lima/mylab-cp
+mylab-node-01    Stopped    127.0.0.1:0    qemu      aarch64    2       4GiB      40GiB    ~/.lima/mylab-node-01
+```
+
+Start the VMs:
+
+```shell
+limactl start mylab-cp
+limactl start mylab-node-01
+```
+
+Then access your cluster as described above.
+
+## Shell access to the nodes
+
+You can access each Lima VM with:
+
+```shell
+limactl shell mylab-cp
+```
+
+All necessary tools, like `mc`, `warp`, `kubectl` are installed on the control plane node.
+You are logged in as a normal user but you can run `sudo` to access root commands.
+
 ## Resource management
 
 All resources support:
