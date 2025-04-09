@@ -27,6 +27,8 @@ The main focus of this tool is on MinIO AIStor testing, training, and demonstrat
 1. Helm is installed. If it's not installed on your machine, follow these [instructions](https://helm.sh/docs/intro/install/).
    On a Mac, the easiest way is to use `brew install helm`.
 
+1. Ansible is installed. If it's not installed on your machine, follow these [instructions](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html). On a Mac, you can simply `brew install ansible`.
+
 #### For local deployment
 
 Local AIStor installation uses Lima to manage virtual machines, QEMU as a virtualization engine, and `socket_vmnet` for the network.
