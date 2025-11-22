@@ -35,8 +35,21 @@ dist/
 # Scratch space
 scratch/
 
+# Personal notes (not committed)
+notes/
+
 # Ansible
 .ansible/
 
 .DS_Store
 drives.yaml
+
+# Secrets (never commit these)
+*.pem
+*.key
+id_rsa*
+config.yaml
+credentials.json
+.aws/
+.hcloud/
+*vault*
