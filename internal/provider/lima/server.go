@@ -71,8 +71,8 @@ func (p *LimaProvider) CreateServer(opts options.ServerCreateOpts) (*types.Serve
 		}
 	}
 	if checkServer != nil {
-		fmt.Println("server already exists", checkServer.ObjectMeta.Name)
-		return nil, fmt.Errorf("server %s already exists", checkServer.ObjectMeta.Name)
+		fmt.Println("server already exists", checkServer.Name)
+		return nil, fmt.Errorf("server %s already exists", checkServer.Name)
 	}
 	// Create a Lima config file in the DefaultLimaDir using the provided opts
 	homeDir, err := os.UserHomeDir()
@@ -174,8 +174,8 @@ func (p *LimaProvider) ListServers(opts options.ServerListOpts) ([]*types.Server
 
 	var labName string
 
-	if opts.ListOpts.LabelSelector != "" {
-		label := opts.ListOpts.LabelSelector
+	if opts.LabelSelector != "" {
+		label := opts.LabelSelector
 		labName = strings.TrimPrefix(label, "lab_name=")
 	}
 	cmd := exec.CommandContext(ctx, "limactl", "list", "--json")
@@ -236,14 +236,14 @@ func (p *LimaProvider) DeleteServer(name string, force bool) *types.ServerDelete
 
 func (p *LimaProvider) ServerToCreateOpts(server *types.Server) (options.ServerCreateOpts, error) {
 	sshKeys, err := p.KeyNamesToSSHKeys(server.Spec.SSHKeyNames, options.SSHKeyCreateOpts{
-		Labels: server.ObjectMeta.Labels,
+		Labels: server.Labels,
 	})
 	if err != nil {
 		return options.ServerCreateOpts{}, err
 	}
 	cloudInitUserData := fmt.Sprintf(config.DefaultCloudInitUserData, sshKeys[0].Spec.PublicKey)
 	return options.ServerCreateOpts{
-		Name:     server.ObjectMeta.Name,
+		Name:     server.Name,
 		Type:     server.Spec.ServerType,
 		Image:    server.Spec.Image,
 		Location: server.Spec.Location,
@@ -326,6 +326,10 @@ func mapServer(server Instance) (*types.Server, error) {
 		return nil, fmt.Errorf("error getting IP address for %s: %w", server.Name, err)
 	}
 	return &types.Server{
+		TypeMeta: types.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Server",
+		},
 		ObjectMeta: types.ObjectMeta{
 			Name: server.Name,
 		},
@@ -406,37 +410,4 @@ func getIPFromVM(vmName string) (string, error) {
 	}
 
 	return interfaces[0].AddrInfo[0].Local, nil
-}
-
-func getStatusFromVM(vmName string) (Instance, error) {
-	listCmd := exec.Command("limactl", "status", vmName)
-	output, err := listCmd.CombinedOutput()
-	if err != nil {
-		return Instance{}, fmt.Errorf("error listing VMs: %v, output: %s", err, output)
-	}
-	var instance Instance
-	err = json.Unmarshal(output, &instance)
-	if err != nil {
-		return Instance{}, fmt.Errorf("error unmarshalling JSON: %w, output: %s", err, output)
-	}
-	return instance, nil
-}
-
-func bytesToHuman(bytes int64) string {
-	const (
-		kb = 1024
-		mb = kb * 1024
-		gb = mb * 1024
-		tb = gb * 1024
-	)
-	if bytes < kb {
-		return fmt.Sprintf("%d B", bytes)
-	}
-	if bytes < mb {
-		return fmt.Sprintf("%.2f MiB", float64(bytes)/mb)
-	}
-	if bytes < gb {
-		return fmt.Sprintf("%.2f GiB", float64(bytes)/gb)
-	}
-	return fmt.Sprintf("%.2f TiB", float64(bytes)/tb)
 }

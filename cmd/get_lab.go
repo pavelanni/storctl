@@ -45,7 +45,10 @@ func listLabs() error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 
 	// Print header
-	fmt.Fprintln(w, "NAME\tOWNER\tNODES\tTYPE\tVOLS\tSIZE\tAGE\tDELETE-AFTER")
+	_, err = fmt.Fprintln(w, "NAME\tOWNER\tNODES\tTYPE\tVOLS\tSIZE\tAGE\tDELETE-AFTER")
+	if err != nil {
+		return fmt.Errorf("failed to write header: %w", err)
+	}
 
 	// Print data for each lab
 	for _, lab := range labs {
@@ -70,12 +73,18 @@ func listLabs() error {
 			deleteAfterStr = deleteAfter.Format(time.RFC3339)
 		}
 
-		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%d\t%.2f\t%s\t%s\n",
+		_, err = fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%d\t%.2f\t%s\t%s\n",
 			lab.Name, owner, len(lab.Status.Servers), serverType, len(lab.Status.Volumes), float32(volSize), labAge, deleteAfterStr)
+		if err != nil {
+			return fmt.Errorf("failed to write lab: %w", err)
+		}
 	}
 
 	// Flush the tabwriter to output
-	w.Flush()
+	err = w.Flush()
+	if err != nil {
+		return fmt.Errorf("failed to flush writer: %w", err)
+	}
 	return nil
 }
 
@@ -101,7 +110,7 @@ func getLab(labName string) error {
 		fmt.Printf("Lab: %s\n", lab.Name)
 		for _, server := range lab.Status.Servers {
 			fmt.Printf("  Server: %s, Type: %s, Cores: %d, Memory: %.2fGB, Disk: %dGB, DeleteAfter: %s\n",
-				server.ObjectMeta.Name,
+				server.Name,
 				server.Spec.ServerType,
 				server.Status.Cores,
 				server.Status.Memory,
@@ -110,7 +119,7 @@ func getLab(labName string) error {
 		}
 		for _, volume := range lab.Status.Volumes {
 			fmt.Printf("  Volume: %s, Size: %dGB, DeleteAfter: %s\n",
-				volume.ObjectMeta.Name,
+				volume.Name,
 				volume.Spec.Size,
 				volume.Status.DeleteAfter)
 		}

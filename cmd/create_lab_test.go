@@ -22,8 +22,8 @@ func TestCreateLabCmd(t *testing.T) {
 			args: []string{"test-lab", "--template", "lab.yaml"},
 			mockSetup: func(m *mock.Manager) {
 				m.CreateFunc = func(lab *types.Lab) error {
-					if lab.ObjectMeta.Name != "test-lab" {
-						t.Errorf("expected lab name 'test-lab', got '%s'", lab.ObjectMeta.Name)
+					if lab.Name != "test-lab" {
+						t.Errorf("expected lab name 'test-lab', got '%s'", lab.Name)
 					}
 					return nil
 				}

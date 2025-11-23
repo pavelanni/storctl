@@ -35,7 +35,10 @@ func setupTestEnvironment(t *testing.T) (*LimaProvider, string, func()) {
 
 	// Create cleanup function
 	cleanup := func() {
-		os.RemoveAll(tmpDir)
+		err := os.RemoveAll(tmpDir)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	provider := &LimaProvider{}

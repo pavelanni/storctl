@@ -65,7 +65,7 @@ func createVolume(volume *types.Volume) error {
 		return fmt.Errorf("failed to initialize provider: %w", err)
 	}
 	fmt.Printf("Creating volume %s with size %d\n",
-		volume.ObjectMeta.Name,
+		volume.Name,
 		volume.Spec.Size)
 	if volume.Spec.ServerID != "" {
 		fmt.Printf("  server: %s\n", volume.Spec.ServerID)
@@ -76,7 +76,7 @@ func createVolume(volume *types.Volume) error {
 	if volume.Spec.Format != "" {
 		fmt.Printf("  format: %s\n", volume.Spec.Format)
 	}
-	labels := volume.ObjectMeta.Labels
+	labels := volume.Labels
 	ttl := volume.Spec.TTL
 	if ttl == "" {
 		ttl = config.DefaultTTL
@@ -89,7 +89,7 @@ func createVolume(volume *types.Volume) error {
 	labels["owner"] = labelutil.SanitizeValue(cfg.Owner)
 
 	_, err = providerSvc.CreateVolume(options.VolumeCreateOpts{
-		Name:       volume.ObjectMeta.Name,
+		Name:       volume.Name,
 		Size:       volume.Spec.Size,
 		ServerName: volume.Spec.ServerName,
 		Labels:     labels,

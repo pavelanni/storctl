@@ -27,24 +27,24 @@ The minio-lab-terraform project is a **mature, feature-rich training lab deploym
    - DigitalOcean: s-4vcpu-8gb droplets
    - Conditional deployment (enable/disable per provider)
 
-2. **DNS management**
+1. **DNS management**
    - Route53 or Cloudflare (configurable)
    - A records: `{server}.{domain}`
    - Wildcards: `*.{server}.{domain}`
    - TTL: 60 seconds
 
-3. **SSH key management**
+1. **SSH key management**
    - Auto-generates 4096-bit RSA key pairs per deployment
    - Uploads to all enabled cloud providers
    - Stores in `ansible/files/{deployment_name}/`
 
-4. **Disk partitioning**
+1. **Disk partitioning**
    - Via cloud-init user_data
    - Creates `/dev/sda2` (75% of disk) as XFS
    - Mounts at `/mnt/data`
    - NO separate volumes (just root disk partitioning)
 
-5. **Workspace isolation**
+1. **Workspace isolation**
    - Terraform workspaces per deployment
    - Independent state files
    - Multiple concurrent environments
@@ -57,32 +57,32 @@ The minio-lab-terraform project is a **mature, feature-rich training lab deploym
    - fail2ban, auditd, unattended-upgrades
    - Training mode: 30-45 seconds vs. production: 5-20 minutes
 
-2. **Docker** (via geerlingguy.docker role)
+1. **Docker** (via geerlingguy.docker role)
 
-3. **Lab server essentials**
+1. **Lab server essentials**
    - 40+ packages (jq, yq, vim, maven, openjdk-21, etc.)
    - zsh with dotfiles
    - Docker Compose
 
-4. **Certbot + HAProxy**
+1. **Certbot + HAProxy**
    - Let's Encrypt certificates
    - Reverse proxy with stats interface
 
-5. **VSCode code-server**
+1. **VSCode code-server**
    - Browser-based IDE (v4.90.3)
    - Password-protected
 
-6. **K3s Kubernetes**
+1. **K3s Kubernetes**
    - Lightweight single-node cluster
 
-7. **DirectPV storage**
+1. **DirectPV storage**
    - Loopback devices from sparse files
    - LVM: PV → VG → LV
    - Default: 4 x 10GB disks
    - Systemd service for persistence
    - Devices: `/dev/mapper/directpv-vg-lv0` through `lv3`
 
-8. **MinIO deployment**
+1. **MinIO deployment**
    - Types: single, distributed, native, core
    - Docker Compose or systemd
    - MC client setup
@@ -120,42 +120,42 @@ All in `ansible/files/{deployment_name}/` and `ansible/inventory/{deployment_nam
    - Location selection
    - Labels for organization
 
-2. **Volume management**
+1. **Volume management**
    - Create/attach/delete volumes
    - Size and format configuration
    - Server attachment
 
-3. **SSH key management**
+1. **SSH key management**
    - Create key pairs
    - Upload to Hetzner
    - Key lifecycle
 
-4. **DNS integration**
+1. **DNS integration**
    - Cloudflare provider
    - A record creation/deletion
    - (Route53 NOT yet implemented)
 
-5. **Ansible integration**
+1. **Ansible integration**
    - Generate inventory files
    - Run playbooks
    - Pass variables to Ansible
 
-6. **Lab abstraction**
+1. **Lab abstraction**
    - YAML-based lab definitions
    - Multi-server labs
    - Multi-volume labs
    - Labels and metadata
 
-7. **TTL support**
+1. **TTL support**
    - Lab expiration timestamps
    - (Automated cleanup NOT yet implemented)
 
-8. **Local state storage**
+1. **Local state storage**
    - BoltDB database
    - Lab persistence
    - (Remote state NOT yet implemented)
 
-9. **Lima provider**
+1. **Lima provider**
    - Local VM testing
    - (For development, not production)
 
@@ -168,28 +168,28 @@ All in `ansible/files/{deployment_name}/` and `ansible/inventory/{deployment_nam
    - Need AWS Route53 support
    - Wildcard record support
 
-2. **User data / cloud-init**
+1. **User data / cloud-init**
    - Disk partitioning on creation
    - Custom user data scripts
    - Template rendering
 
-3. **Multi-server lab orchestration**
+1. **Multi-server lab orchestration**
    - Currently creates servers, but no coordination
    - Need sequential creation for dependencies
    - Wait for server readiness before next steps
 
-4. **Ansible variable passing**
+1. **Ansible variable passing**
    - Pass all lab spec variables to Ansible
    - Template rendering for group_vars
    - Support for 50+ configuration variables
 
-5. **Deployment lifecycle orchestration**
+1. **Deployment lifecycle orchestration**
    - Infrastructure phase (create VMs)
    - Wait phase (SSH readiness)
    - Configuration phase (run Ansible)
    - Status reporting throughout
 
-6. **Access information generation**
+1. **Access information generation**
    - SSH connection strings
    - Service URLs (MinIO, VSCode, HAProxy)
    - Credential summary
@@ -197,93 +197,93 @@ All in `ansible/files/{deployment_name}/` and `ansible/inventory/{deployment_nam
 
 ### 🟡 Important features (should have)
 
-7. **AWS provider**
+1. **AWS provider**
    - EC2 instance creation
    - Security group management
    - Key pair management
    - (Currently Hetzner only)
 
-8. **DigitalOcean provider**
+1. **DigitalOcean provider**
    - Droplet creation
    - SSH key management
    - (Nice to have for compatibility)
 
-9. **Training lab optimization mode**
+1. **Training lab optimization mode**
    - Pass flag to Ansible for fast mode
    - Skip slow security tasks
    - Document security tradeoffs
 
-10. **DirectPV automation**
+1. **DirectPV automation**
     - Create loopback devices
     - LVM setup
     - Systemd service deployment
     - (Or just document in Ansible role)
 
-11. **Multi-cloud deployment**
+1. **Multi-cloud deployment**
     - Deploy to multiple clouds in single command
     - Provider selection logic
     - Conditional resource creation
 
-12. **Workspace/environment isolation**
+1. **Workspace/environment isolation**
     - Multiple concurrent deployments
     - Name-based separation
     - Independent lifecycle
 
 ### 🟢 Nice to have (future enhancements)
 
-13. **Template-based script generation**
+1. **Template-based script generation**
     - MC client setup scripts
     - Site replication scripts
     - Access scripts
 
-14. **License file management**
+1. **License file management**
     - Copy license to servers
     - Store license in state
 
-15. **Configuration restoration**
+1. **Configuration restoration**
     - Restore MinIO cluster config from snapshot
     - Backup/restore workflows
 
-16. **Auto-shutdown scheduling**
+1. **Auto-shutdown scheduling**
     - Time-based shutdown
     - Cost savings for idle labs
 
-17. **Network management**
+1. **Network management**
     - Private networks
     - Firewall rules
     - Security groups
 
-18. **Snapshot support**
+1. **Snapshot support**
     - VM snapshots
     - Clone from snapshot
     - Backup workflows
 
 ## Feature comparison matrix
 
-| Feature | minio-lab-terraform | storctl (current) | storctl (needed) |
-|---------|---------------------|-------------------|------------------|
-| **Hetzner Cloud VMs** | ✅ | ✅ | - |
-| **AWS EC2** | ✅ | ❌ | 🔴 Optional |
-| **DigitalOcean** | ✅ | ❌ | 🟢 Optional |
-| **Route53 DNS** | ✅ | ❌ | 🔴 Required |
-| **Cloudflare DNS** | ✅ | ✅ | - |
-| **Wildcard DNS** | ✅ | ❌ | 🔴 Required |
-| **SSH key generation** | ✅ | ✅ | - |
-| **Cloud-init user data** | ✅ | ❌ | 🔴 Required |
-| **Disk partitioning** | ✅ (cloud-init) | ❌ | 🔴 Required |
-| **Separate volumes** | ❌ | ✅ | - (storctl better!) |
-| **Ansible integration** | ✅ | ✅ (basic) | 🟡 Enhance |
-| **Inventory generation** | ✅ | ✅ | 🟡 Enhance |
-| **Variable passing** | ✅ (50+ vars) | ❌ | 🔴 Required |
-| **Multi-cloud deployment** | ✅ | ❌ | 🟡 Optional |
-| **Workspace isolation** | ✅ (Terraform) | ✅ (implicit) | - |
-| **State management** | ✅ (per workspace) | ✅ (BoltDB) | 🟡 Enhance |
-| **TTL/expiration** | ✅ (script) | ✅ (metadata) | 🔴 Automate |
-| **Cost tracking** | ❌ | ❌ | 🟢 New feature |
-| **Training mode** | ✅ | ❌ | 🟡 Pass to Ansible |
-| **DirectPV setup** | ✅ (Ansible) | ❌ | 🟡 Ansible role |
-| **Access scripts** | ✅ (generated) | ❌ | 🟡 Generate |
-| **License management** | ✅ | ❌ | 🟢 Optional |
+| Feature                    | minio-lab-terraform | storctl (current) | storctl (needed)    |
+| -------------------------- | ------------------- | ----------------- | ------------------- |
+| **Hetzner Cloud VMs**      | ✅                   | ✅                 | -                   |
+| **AWS EC2**                | ✅                   | ❌                 | 🔴 Optional          |
+| **DigitalOcean**           | ✅                   | ❌                 | 🟢 Optional          |
+| **Route53 DNS**            | ✅                   | ❌                 | 🔴 Required          |
+| **Cloudflare DNS**         | ✅                   | ✅                 | -                   |
+| **Wildcard DNS**           | ✅                   | ❌                 | 🔴 Required          |
+| **SSH key generation**     | ✅                   | ✅                 | -                   |
+| **Cloud-init user data**   | ✅                   | ❌                 | 🔴 Required          |
+| **Disk partitioning**      | ✅ (cloud-init)      | ❌                 | 🔴 Required          |
+| **Separate volumes**       | ❌                   | ✅                 | - (storctl better!) |
+| **Ansible integration**    | ✅                   | ✅ (basic)         | 🟡 Enhance           |
+| **Inventory generation**   | ✅                   | ✅                 | 🟡 Enhance           |
+| **Variable passing**       | ✅ (50+ vars)        | ❌                 | 🔴 Required          |
+| **Multi-cloud deployment** | ✅                   | ❌                 | 🟡 Optional          |
+| **Workspace isolation**    | ✅ (Terraform)       | ✅ (implicit)      | -                   |
+| **State management**       | ✅ (per workspace)   | ✅ (BoltDB)        | 🟡 Enhance           |
+| **TTL/expiration**         | ✅ (script)          | ✅ (metadata)      | 🔴 Automate          |
+| **Cost tracking**          | ❌                   | ❌                 | 🟢 New feature       |
+| **Training mode**          | ✅                   | ❌                 | 🟡 Pass to Ansible   |
+| **DirectPV setup**         | ✅ (Ansible)         | ❌                 | 🟡 Ansible role      |
+| **Access scripts**         | ✅ (generated)       | ❌                 | 🟡 Generate          |
+| **License management**     | ✅                   | ❌                 | 🟢 Optional          |
 
 **Legend:**
 - 🔴 Critical (blocks Terraform replacement)
@@ -298,8 +298,8 @@ All in `ansible/files/{deployment_name}/` and `ansible/inventory/{deployment_nam
 
 storctl already has Ansible integration. Just need to:
 1. Copy roles from `../minio-lab-terraform/ansible/roles/` to storctl's embedded assets
-2. Use same playbook structure
-3. Pass required variables
+1. Use same playbook structure
+1. Pass required variables
 
 **Action:** Minimal - just reference the existing Ansible repo or embed it.
 
@@ -315,27 +315,27 @@ storctl already has Ansible integration. Just need to:
    - A records + wildcard support
    - Update DNS factory to support selection
 
-2. **Cloud-init user data** (Week 1)
+1. **Cloud-init user data** (Week 1)
    - Add `UserData` field to ServerCreateOpts
    - Template for disk partitioning (from terraform user_data.tmpl)
    - Pass to Hetzner API
 
-3. **Wildcard DNS records** (Week 1)
+1. **Wildcard DNS records** (Week 1)
    - Modify DNS creation to add wildcard: `*.{server}.{domain}`
    - Both Route53 and Cloudflare
 
-4. **Enhanced Ansible variable passing** (Week 2)
+1. **Enhanced Ansible variable passing** (Week 2)
    - Generate group_vars/all.yml from lab spec
    - Support arbitrary variables in lab YAML
    - Template rendering
 
-5. **Deployment orchestration improvements** (Week 2-3)
+1. **Deployment orchestration improvements** (Week 2-3)
    - SSH readiness polling (replace fixed wait)
    - Sequential server creation for dependencies
    - Progress reporting
    - Error handling and rollback
 
-6. **Access information output** (Week 3)
+1. **Access information output** (Week 3)
    - Generate SSH commands
    - Service URLs (with wildcard support)
    - Credential summary
@@ -354,24 +354,24 @@ storctl already has Ansible integration. Just need to:
    - Pass to Ansible as variable
    - Document in lab templates
 
-2. **Multi-server coordination** (Week 4)
+1. **Multi-server coordination** (Week 4)
    - Server roles (control-plane, worker)
    - Creation order enforcement
    - Dependency management
 
-3. **Template-based outputs** (Week 5)
+1. **Template-based outputs** (Week 5)
    - MC client setup scripts
    - Access scripts (SSH, services)
    - Site replication scripts
    - Store in `~/.storctl/labs/{lab_name}/`
 
-4. **DirectPV automation** (Week 5)
+1. **DirectPV automation** (Week 5)
    - Ansible role for loopback device setup
    - LVM configuration
    - Systemd service deployment
    - (Or just reuse existing role)
 
-5. **Enhanced status and info** (Week 6)
+1. **Enhanced status and info** (Week 6)
    - `storctl info lab mylab`: Show all access details
    - `storctl ssh lab mylab [server-name]`: Direct SSH
    - `storctl logs lab mylab`: Show deployment logs
@@ -391,13 +391,13 @@ storctl already has Ansible integration. Just need to:
    - Key pair management
    - VPC networking
 
-2. **DigitalOcean provider** (Week 8-9)
+1. **DigitalOcean provider** (Week 8-9)
    - Implement `internal/provider/digitalocean/`
    - Droplet creation
    - SSH key management
    - Firewall rules
 
-3. **Multi-cloud lab support** (Week 9)
+1. **Multi-cloud lab support** (Week 9)
    - Lab spec with multiple providers
    - Conditional resource creation
    - Cross-cloud operations
@@ -660,18 +660,18 @@ storctl delete lab my-lab --confirm
 
 ## Side-by-side command comparison
 
-| Task | minio-lab-terraform | storctl |
-|------|---------------------|---------|
-| **Initialize** | Edit terraform.tfvars | `storctl init`, edit config.yaml |
-| **Deploy** | `make setup` | `storctl create lab mylab -f lab.yaml` |
-| **Check status** | `terraform output` | `storctl get lab mylab` |
-| **Show access info** | `cat ansible/files/.../access.sh` | `storctl info lab mylab` |
-| **SSH to server** | `ssh -i ansible/files/.../key.pem user@server` | `storctl ssh lab mylab server-01` |
-| **Extend lifetime** | Edit tfvars, `make setup` | `storctl extend lab mylab --ttl 3d` |
-| **List environments** | `terraform workspace list` | `storctl get lab` |
-| **Destroy** | `make destroy` | `storctl delete lab mylab` |
-| **Run Ansible only** | `make ansible-deploy` | `storctl install lab mylab` |
-| **Check costs** | Manual Hetzner console | `storctl costs show mylab` |
+| Task                  | minio-lab-terraform                            | storctl                                |
+| --------------------- | ---------------------------------------------- | -------------------------------------- |
+| **Initialize**        | Edit terraform.tfvars                          | `storctl init`, edit config.yaml       |
+| **Deploy**            | `make setup`                                   | `storctl create lab mylab -f lab.yaml` |
+| **Check status**      | `terraform output`                             | `storctl get lab mylab`                |
+| **Show access info**  | `cat ansible/files/.../access.sh`              | `storctl info lab mylab`               |
+| **SSH to server**     | `ssh -i ansible/files/.../key.pem user@server` | `storctl ssh lab mylab server-01`      |
+| **Extend lifetime**   | Edit tfvars, `make setup`                      | `storctl extend lab mylab --ttl 3d`    |
+| **List environments** | `terraform workspace list`                     | `storctl get lab`                      |
+| **Destroy**           | `make destroy`                                 | `storctl delete lab mylab`             |
+| **Run Ansible only**  | `make ansible-deploy`                          | `storctl install lab mylab`            |
+| **Check costs**       | Manual Hetzner console                         | `storctl costs show mylab`             |
 
 ## Risks and mitigations
 
@@ -726,10 +726,10 @@ storctl delete lab my-lab --confirm
 
 **Must have** for Terraform replacement:
 1. Route53 DNS provider
-2. Wildcard DNS support
-3. Cloud-init user data
-4. Enhanced Ansible integration
-5. Deployment orchestration
+1. Wildcard DNS support
+1. Cloud-init user data
+1. Enhanced Ansible integration
+1. Deployment orchestration
 
 **Outcome:** Can replace Terraform for Hetzner + Route53/Cloudflare deployments
 
@@ -737,9 +737,9 @@ storctl delete lab my-lab --confirm
 
 **Should have** for comfortable migration:
 1. Training lab mode
-2. Multi-server coordination
-3. Access information generation
-4. DirectPV automation (or Ansible role reuse)
+1. Multi-server coordination
+1. Access information generation
+1. DirectPV automation (or Ansible role reuse)
 
 **Outcome:** Full feature parity with minio-lab-terraform
 
@@ -747,16 +747,16 @@ storctl delete lab my-lab --confirm
 
 **Nice to have** improvements over Terraform:
 1. Remote state storage
-2. Web dashboard
-3. Cost tracking
-4. Automated TTL cleanup
-5. Multi-cloud support (AWS, DO)
+1. Web dashboard
+1. Cost tracking
+1. Automated TTL cleanup
+1. Multi-cloud support (AWS, DO)
 
 **Outcome:** storctl is superior to Terraform approach
 
 ## Success metrics
 
-### Migration complete when:
+### Migration complete when
 
 - ✅ Can deploy Hetzner VMs with Route53 DNS
 - ✅ Wildcard DNS records work
@@ -767,7 +767,7 @@ storctl delete lab my-lab --confirm
 - ✅ TTL enforcement automated
 - ✅ Team can create/destroy labs without Terraform knowledge
 
-### Success indicators (1 month post-migration):
+### Success indicators (1 month post-migration)
 
 - Zero Terraform deployments (all via storctl)
 - Reduced deployment time (automated TTL vs. manual)
@@ -780,16 +780,16 @@ The minio-lab-terraform project is **more complex than expected** but storctl ca
 
 **Key advantages of migration:**
 1. **Simpler:** One tool (storctl) vs. three (Terraform + Ansible + Makefile)
-2. **Better state:** Centralized tracking vs. scattered workspace states
-3. **Cost control:** Built-in TTL enforcement and cost tracking
-4. **Better UX:** Intuitive commands vs. Makefile targets
-5. **More features:** Web dashboard, budget alerts, etc.
+1. **Better state:** Centralized tracking vs. scattered workspace states
+1. **Cost control:** Built-in TTL enforcement and cost tracking
+1. **Better UX:** Intuitive commands vs. Makefile targets
+1. **More features:** Web dashboard, budget alerts, etc.
 
 **Key challenges:**
 1. Route53 DNS implementation
-2. Cloud-init user data support
-3. Ansible integration enhancement
-4. Multi-cloud abstraction (if AWS/DO needed)
+1. Cloud-init user data support
+1. Ansible integration enhancement
+1. Multi-cloud abstraction (if AWS/DO needed)
 
 **Recommendation:** Start with Priority 1 (Weeks 1-3) to prove feasibility, then proceed to full migration.
 

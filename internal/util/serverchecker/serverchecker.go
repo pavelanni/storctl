@@ -38,12 +38,7 @@ func NewServerChecker(host string, user string, keyPath string, timeout time.Dur
 		return nil, fmt.Errorf("key file does not exist: %s", keyPath)
 	}
 
-	client := &RealSSHClient{
-		host:    host,
-		user:    user,
-		keyPath: keyPath,
-	}
-
+	client := NewRealSSHClient(host, user, keyPath, logger.Get())
 	return &ServerChecker{
 		client:   client,
 		host:     host,
@@ -65,7 +60,7 @@ func CheckServers(servers []*types.Server, logger *slog.Logger, timeout time.Dur
 		serverPrivateKeyPath := filepath.Join(os.Getenv("HOME"),
 			config.DefaultConfigDir,
 			config.DefaultKeysDir,
-			strings.Join([]string{server.ObjectMeta.Labels["lab_name"], "admin"}, "-"))
+			strings.Join([]string{server.Labels["lab_name"], "admin"}, "-"))
 		if serverIP == "" {
 			results[i] = ServerResult{Server: server, Error: fmt.Errorf("server IP is empty")}
 			continue
@@ -147,7 +142,11 @@ func (sc *ServerChecker) checkServerReady(ctx context.Context) error {
 					"timeElapsed", time.Since(time.Now()))
 				continue
 			}
-			defer sc.client.Close()
+			defer func() {
+				if err := sc.client.Close(); err != nil {
+					sc.logger.Error("failed to close SSH client", "error", err)
+				}
+			}()
 
 			// Check cloud-init status
 			cloudInitStatus, err := sc.client.ExecCommand("cloud-init status --wait")

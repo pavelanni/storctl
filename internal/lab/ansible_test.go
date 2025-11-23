@@ -31,7 +31,8 @@ func TestManagerSvc_CreateAnsibleInventoryFile(t *testing.T) {
 	}
 
 	// Mock the home directory by setting up a test environment variable
-	os.Setenv("HOME", tmpDir)
+	err = os.Setenv("HOME", tmpDir)
+	assert.NoError(t, err)
 
 	// Create a test lab instance
 	lab := &types.Lab{

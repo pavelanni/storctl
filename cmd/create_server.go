@@ -51,7 +51,7 @@ func NewCreateServerCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Server created successfully: %s\n", result.ObjectMeta.Name)
+			fmt.Printf("Server created successfully: %s\n", result.Name)
 			return nil
 		},
 	}
@@ -77,13 +77,13 @@ func createServer(server *types.Server) (*types.Server, error) {
 	sshManager := ssh.NewManager(cfg)
 	// no ssh keys provided, use the admin key
 	if len(server.Spec.SSHKeyNames) == 0 {
-		serverKeyName := server.ObjectMeta.Name + "-admin"
+		serverKeyName := server.Name + "-admin"
 		fmt.Printf("No SSH keys provided, using default: %s\n", serverKeyName)
 		server.Spec.SSHKeyNames = []string{serverKeyName}
 	}
 	// Access fields using map syntax
 	fmt.Printf("Creating server %s with type %s, image %s, provider %s, location %s, ssh keys %v\n",
-		server.ObjectMeta.Name,
+		server.Name,
 		server.Spec.ServerType,
 		server.Spec.Image,
 		server.Spec.Provider,
@@ -95,7 +95,7 @@ func createServer(server *types.Server) (*types.Server, error) {
 		ttl = server.Spec.TTL
 	}
 
-	labels := server.ObjectMeta.Labels
+	labels := server.Labels
 	duration, err := timeutil.TtlToDuration(ttl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ttl: %w", err)

@@ -3,6 +3,7 @@ package serverchecker
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
@@ -14,6 +15,16 @@ type RealSSHClient struct {
 	user    string
 	keyPath string
 	client  *ssh.Client
+	logger  *slog.Logger
+}
+
+func NewRealSSHClient(host string, user string, keyPath string, logger *slog.Logger) *RealSSHClient {
+	return &RealSSHClient{
+		host:    host,
+		user:    user,
+		keyPath: keyPath,
+		logger:  logger,
+	}
 }
 
 func (r *RealSSHClient) Connect() error {
@@ -60,7 +71,11 @@ func (r *RealSSHClient) ExecCommand(cmd string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("create session: %w", err)
 	}
-	defer session.Close()
+	defer func() {
+		if err := session.Close(); err != nil {
+			r.logger.Error("failed to close session", "error", err)
+		}
+	}()
 
 	var output bytes.Buffer
 	session.Stdout = &output

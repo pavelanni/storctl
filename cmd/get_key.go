@@ -37,7 +37,10 @@ func listKeys() error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tLAB\tAGE\tDELETE AFTER")
+	_, err = fmt.Fprintln(w, "NAME\tLAB\tAGE\tDELETE AFTER")
+	if err != nil {
+		return fmt.Errorf("failed to write header: %w", err)
+	}
 	for _, key := range keys {
 		deleteAfter := "-"
 		if !key.Status.DeleteAfter.IsZero() {
@@ -49,13 +52,20 @@ func listKeys() error {
 			labName = "-"
 		}
 
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+		_, err = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
 			key.Name,
 			labName,
 			timeutil.FormatAge(key.Status.Created),
 			deleteAfter)
+		if err != nil {
+			return fmt.Errorf("failed to write key: %w", err)
+		}
 	}
-	return w.Flush()
+	err = w.Flush()
+	if err != nil {
+		return fmt.Errorf("failed to flush writer: %w", err)
+	}
+	return nil
 }
 
 func getKey(name string) error {
@@ -69,7 +79,10 @@ func getKey(name string) error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tLAB\tAGE\tDELETE AFTER")
+	_, err = fmt.Fprintln(w, "NAME\tLAB\tAGE\tDELETE AFTER")
+	if err != nil {
+		return fmt.Errorf("failed to write header: %w", err)
+	}
 
 	deleteAfter := "-"
 	if !key.Status.DeleteAfter.IsZero() {
@@ -81,11 +94,17 @@ func getKey(name string) error {
 		labName = "-"
 	}
 
-	fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+	_, err = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
 		key.Name,
 		labName,
 		timeutil.FormatAge(key.Status.Created),
 		deleteAfter)
-
-	return w.Flush()
+	if err != nil {
+		return fmt.Errorf("failed to write key: %w", err)
+	}
+	err = w.Flush()
+	if err != nil {
+		return fmt.Errorf("failed to flush writer: %w", err)
+	}
+	return nil
 }

@@ -4,9 +4,11 @@ package output
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 
+	"github.com/pavelanni/storctl/internal/logger"
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,6 +31,14 @@ func YAML(data interface{}, w io.Writer) error {
 
 	encoder := yaml.NewEncoder(w)
 	encoder.SetIndent(2)
-	defer encoder.Close()
-	return encoder.Encode(data)
+	defer func() {
+		if err := encoder.Close(); err != nil {
+			logger.Get().Error("failed to close encoder", "error", err)
+		}
+	}()
+	err := encoder.Encode(data)
+	if err != nil {
+		return fmt.Errorf("failed to encode data: %w", err)
+	}
+	return nil
 }

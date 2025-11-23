@@ -31,6 +31,9 @@ const (
 	// DefaultAdminUser is the default admin user
 	DefaultAdminUser = "ansible"
 
+	// DefaultLocalStorageType is the default storage type
+	DefaultStorageType = "postgres"
+
 	// DefaultLabBucket is the default bucket for storing labs
 	DefaultLabBucket = "labs"
 

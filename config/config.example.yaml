@@ -11,6 +11,18 @@ dns:
   token: "your-dns-token-here"
   zone_id: "your-zone-id-here"
 
+storage:
+  type: postgres # or "local" for boltdb
+  postgres:
+    host: localhost
+    port: 5432
+    database: storctl_dev
+    user: postgres
+    password: storctl
+  local:
+    path: /tmp/storctl.db
+    bucket: labs
+
 email: "your-email@example.com"
 organization: "your-organization-name"
 owner: "your-name"

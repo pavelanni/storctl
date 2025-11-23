@@ -38,7 +38,7 @@ func NewCreateKeyCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("SSH key created successfully: %s\n", key.ObjectMeta.Name)
+			fmt.Printf("SSH key created successfully: %s\n", key.Name)
 			return nil
 		},
 	}
@@ -50,7 +50,7 @@ func NewCreateKeyCmd() *cobra.Command {
 
 func createKey(key *types.SSHKey) (*types.SSHKey, error) {
 	keyManager := ssh.NewManager(cfg)
-	keyName := key.ObjectMeta.Name
+	keyName := key.Name
 	if keyName == "" {
 		return nil, fmt.Errorf("key name is required")
 	}
@@ -103,7 +103,7 @@ func createKey(key *types.SSHKey) (*types.SSHKey, error) {
 	}
 
 	fmt.Printf("Creating SSH key %s on provider\n", keyName)
-	labels := key.ObjectMeta.Labels
+	labels := key.Labels
 	var ttl string
 	if key.Spec.TTL == "" {
 		ttl = config.DefaultTTL

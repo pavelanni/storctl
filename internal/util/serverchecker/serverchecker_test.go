@@ -85,10 +85,10 @@ func TestCheckServers(t *testing.T) {
 	// Check that results contain expected errors
 	for _, result := range results {
 		if result.Ready {
-			t.Errorf("Server %s should not be ready", result.Server.ObjectMeta.Name)
+			t.Errorf("Server %s should not be ready", result.Server.Name)
 		}
 		if result.Error == nil {
-			t.Errorf("Expected error for server %s", result.Server.ObjectMeta.Name)
+			t.Errorf("Expected error for server %s", result.Server.Name)
 		}
 	}
 }

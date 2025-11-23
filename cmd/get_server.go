@@ -39,20 +39,30 @@ func listServers() error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tTYPE\tOWNER\tAGE\tDELETE AFTER")
+	_, err = fmt.Fprintln(w, "NAME\tTYPE\tOWNER\tAGE\tDELETE AFTER")
+	if err != nil {
+		return fmt.Errorf("failed to write header: %w", err)
+	}
 	for _, server := range servers {
 		deleteAfter := "-"
 		if !server.Status.DeleteAfter.IsZero() {
 			deleteAfter = server.Status.DeleteAfter.Format(time.RFC3339)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+		_, err = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
 			server.Name,
 			server.Spec.ServerType,
 			server.Status.Owner,
 			timeutil.FormatAge(server.Status.Created),
 			deleteAfter)
+		if err != nil {
+			return fmt.Errorf("failed to write server: %w", err)
+		}
 	}
-	return w.Flush()
+	err = w.Flush()
+	if err != nil {
+		return fmt.Errorf("failed to flush writer: %w", err)
+	}
+	return nil
 }
 
 func getServer(serverID string) error {
@@ -72,17 +82,27 @@ func getServer(serverID string) error {
 		return output.YAML(server, os.Stdout)
 	default:
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tTYPE\tOWNER\tAGE\tDELETE AFTER")
+		_, err = fmt.Fprintln(w, "NAME\tTYPE\tOWNER\tAGE\tDELETE AFTER")
+		if err != nil {
+			return fmt.Errorf("failed to write header: %w", err)
+		}
 		deleteAfter := "-"
 		if !server.Status.DeleteAfter.IsZero() {
 			deleteAfter = server.Status.DeleteAfter.Format(time.RFC3339)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+		_, err = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
 			server.Name,
 			server.Spec.ServerType,
 			server.Status.Owner,
 			timeutil.FormatAge(server.Status.Created),
 			deleteAfter)
-		return w.Flush()
+		if err != nil {
+			return fmt.Errorf("failed to write server: %w", err)
+		}
+		err = w.Flush()
+		if err != nil {
+			return fmt.Errorf("failed to flush writer: %w", err)
+		}
+		return nil
 	}
 }

@@ -81,8 +81,9 @@ func createConfig() error {
 	defaultCfg.Email = config.DefaultEmail
 	defaultCfg.Organization = config.DefaultOrganization
 	defaultCfg.Owner = config.DefaultOwner
-	defaultCfg.Storage.Path = filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, config.DefaultLabStorageFile)
-	defaultCfg.Storage.Bucket = config.DefaultLabBucket
+	defaultCfg.Storage.Type = config.DefaultStorageType
+	defaultCfg.Storage.Local.Path = filepath.Join(os.Getenv("HOME"), config.DefaultConfigDir, config.DefaultLabStorageFile)
+	defaultCfg.Storage.Local.Bucket = config.DefaultLabBucket
 
 	// Marshal the default config to YAML and write it to the default config file
 	cfgBytes, err := yaml.Marshal(defaultCfg)

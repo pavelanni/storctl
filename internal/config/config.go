@@ -25,8 +25,22 @@ type Config struct {
 }
 
 type StorageConfig struct {
-	Path   string `mapstructure:"path" yaml:"path"`
-	Bucket string `mapstructure:"bucket" yaml:"bucket"`
+	Type     string         `mapstructure:"type" yaml:"type"`
+	Postgres PostgresConfig `mapstructure:"postgres" yaml:"postgres"`
+	Local    LocalConfig    `mapstructure:"local" yaml:"local"`
+}
+
+type PostgresConfig struct {
+	Host     string `mapstructure:"host"`
+	Port     string `mapstructure:"port"`
+	Database string `mapstructure:"database"`
+	User     string `mapstructure:"user"`
+	Password string `mapstructure:"password"`
+}
+
+type LocalConfig struct {
+	Path   string `mapstructure:"path"`
+	Bucket string `mapstructure:"bucket"`
 }
 
 type ProviderConfig struct {
@@ -82,16 +96,16 @@ func LoadConfig(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 	if config.Owner == "" {
-		return nil, fmt.Errorf("Owner is not set in the config file")
+		return nil, fmt.Errorf("owner is not set in the config file")
 	}
 	if config.Organization == "" {
-		return nil, fmt.Errorf("Organization is not set in the config file")
+		return nil, fmt.Errorf("organization is not set in the config file")
 	}
 	if config.Email == "" {
-		return nil, fmt.Errorf("Email is not set in the config file")
+		return nil, fmt.Errorf("email is not set in the config file")
 	}
 	if len(config.Providers) == 0 {
-		return nil, fmt.Errorf("Providers are not set in the config file. You should have at least one provider")
+		return nil, fmt.Errorf("providers are not set in the config file. You should have at least one provider")
 	}
 	return &config, nil
 }

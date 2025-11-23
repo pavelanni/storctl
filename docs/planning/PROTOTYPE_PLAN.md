@@ -39,8 +39,8 @@
 **Setup:**
 ```bash
 # Install PostgreSQL locally
-brew install postgresql@15
-brew services start postgresql@15
+brew install postgresql@17
+brew services start postgresql@17
 
 # Create database
 createdb storctl_dev
@@ -51,7 +51,7 @@ docker run -d \
   -e POSTGRES_PASSWORD=storctl \
   -e POSTGRES_DB=storctl_dev \
   -p 5432:5432 \
-  postgres:15
+  postgres:17
 ```
 
 **Schema:** Create `migrations/001_initial.sql`:
@@ -112,7 +112,7 @@ type Storage interface {
 }
 ```
 
-2. Implement PostgreSQL storage:
+1. Implement PostgreSQL storage:
 ```go
 // internal/storage/postgres/postgres.go
 package postgres
@@ -123,6 +123,7 @@ import (
     "fmt"
 
     _ "github.com/lib/pq"
+    "github.com/paveni/storctl/internal/config"
     "github.com/pavelanni/storctl/internal/types"
 )
 
@@ -130,14 +131,20 @@ type Storage struct {
     db *sql.DB
 }
 
-func New(connStr string) (*Storage, error) {
+func New(cfg *config.Config) (*Storage, error) {
+    connStr := fmt.Sprintf("host=%s port=%s dbname=%s user=%s password=%s",
+        cfg.Storage.Postgres.Host,
+        cfg.Storage.Postgres.Port,
+        cfg.Storage.Postgres.Database,
+        cfg.Storage.Postgres.User,
+        cfg.Storage.Postgres.Password)
     db, err := sql.Open("postgres", connStr)
     if err != nil {
-        return nil, err
+        return nil, fmt.Errorf("failed to open postgres db: %w", err)
     }
 
     if err := db.Ping(); err != nil {
-        return nil, err
+        return nil, fmt.Errorf("failed to ping postgres db: %w", err)
     }
 
     return &Storage{db: db}, nil
@@ -183,7 +190,7 @@ func (s *Storage) Get(name string) (*types.Lab, error) {
 // ... List, Delete, Close methods
 ```
 
-3. Update config to support both:
+1. Update config to support both:
 ```yaml
 # config.yaml
 storage:
@@ -196,7 +203,7 @@ storage:
     password: storctl
 ```
 
-4. Update lab manager to use storage interface
+1. Update lab manager to use storage interface
 
 **Testing:**
 ```bash
@@ -482,7 +489,7 @@ cp ../minio-lab-terraform/ansible/main.yml assets/ansible/playbooks/
 # Just point to ../minio-lab-terraform/ansible/
 ```
 
-2. Enhanced inventory generation:
+1. Enhanced inventory generation:
 ```go
 // internal/lab/ansible.go - enhance CreateAnsibleInventoryFile
 
@@ -504,7 +511,7 @@ groupVarsData, _ := yaml.Marshal(allVars)
 os.WriteFile(groupVarsPath, groupVarsData, 0644)
 ```
 
-3. SSH readiness check:
+1. SSH readiness check:
 ```go
 // Before running Ansible, wait for SSH
 for _, server := range lab.Status.Servers {
@@ -811,24 +818,24 @@ Error: lab demo-01 not found
 
 ### If manager approves
 1. Clean up prototype code
-2. Add proper error handling
-3. Write tests
-4. Add web service + API
-5. Build React dashboard (optional)
-6. Production deployment
+1. Add proper error handling
+1. Write tests
+1. Add web service + API
+1. Build React dashboard (optional)
+1. Production deployment
 
 ### If needs more proof
 1. Use for your next course
-2. Get team feedback
-3. Iterate and demo again
+1. Get team feedback
+1. Iterate and demo again
 
 ## Getting started
 
 ### This weekend (4-6 hours)
 1. Set up PostgreSQL locally
-2. Create migrations
-3. Implement Storage interface
-4. Test basic CRUD with PostgreSQL
+1. Create migrations
+1. Implement Storage interface
+1. Test basic CRUD with PostgreSQL
 
 ### Week 1 goal
 - All existing commands work with PostgreSQL

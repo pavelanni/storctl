@@ -75,7 +75,7 @@ func processDeleteResource(resource *types.Resource, assumeYes, skipTimeCheck bo
 	if !askForConfirmation(resource) {
 		return nil
 	}
-	resourceName := resource.ObjectMeta.Name
+	resourceName := resource.Name
 	if resourceName == "" {
 		return fmt.Errorf("resource name is required")
 	}
@@ -110,20 +110,26 @@ func processDeleteResource(resource *types.Resource, assumeYes, skipTimeCheck bo
 }
 
 func askForConfirmation(resource *types.Resource) bool {
-	resourceName := resource.ObjectMeta.Name
+	resourceName := resource.Name
 	if resourceName == "" {
 		return false
 	}
 	resourceKind := resource.Kind
 	fmt.Printf("Are you sure you want to delete %s %s? [y/N] ", resourceKind, resourceName)
 	var response string
-	fmt.Scanf("%s", &response)
+	_, err := fmt.Scanf("%s", &response)
+	if err != nil {
+		return false
+	}
 	return response == "y" || response == "Y"
 }
 
 func askForConfirmationSimple(kind, name string) bool {
 	fmt.Printf("Are you sure you want to delete %s %s? [y/N] ", kind, name)
 	var response string
-	fmt.Scanf("%s", &response)
+	_, err := fmt.Scanf("%s", &response)
+	if err != nil {
+		return false
+	}
 	return response == "y" || response == "Y"
 }

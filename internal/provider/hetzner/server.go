@@ -23,11 +23,11 @@ func (p *HetznerProvider) CreateServer(opts options.ServerCreateOpts) (*types.Se
 	}
 	sshKeyNames := make([]string, 0)
 	for _, sshKey := range opts.SSHKeys {
-		sshKeyNames = append(sshKeyNames, sshKey.ObjectMeta.Name)
+		sshKeyNames = append(sshKeyNames, sshKey.Name)
 	}
 	hCloudSSHKeys := make([]*hcloud.SSHKey, 0)
 	for _, sshKey := range opts.SSHKeys {
-		hCloudKey, _, err := p.Client.SSHKey.Get(context.Background(), sshKey.ObjectMeta.Name)
+		hCloudKey, _, err := p.Client.SSHKey.Get(context.Background(), sshKey.Name)
 		if err != nil {
 			return nil, fmt.Errorf("error getting SSH key: %w", err)
 		}
@@ -144,14 +144,14 @@ func (p *HetznerProvider) DeleteServer(serverName string, force bool) *types.Ser
 
 func (p *HetznerProvider) ServerToCreateOpts(server *types.Server) (options.ServerCreateOpts, error) {
 	sshKeys, err := p.KeyNamesToSSHKeys(server.Spec.SSHKeyNames, options.SSHKeyCreateOpts{
-		Labels: server.ObjectMeta.Labels,
+		Labels: server.Labels,
 	})
 	if err != nil {
 		return options.ServerCreateOpts{}, fmt.Errorf("error converting SSH keys: %w", err)
 	}
 	cloudInitUserData := fmt.Sprintf(config.DefaultCloudInitUserData, sshKeys[0].Spec.PublicKey)
 	return options.ServerCreateOpts{
-		Name:     server.ObjectMeta.Name,
+		Name:     server.Name,
 		Type:     server.Spec.ServerType,
 		Image:    server.Spec.Image,
 		Location: server.Spec.Location,

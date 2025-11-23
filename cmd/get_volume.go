@@ -39,21 +39,31 @@ func listVolumes() error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tSERVER\tSIZE\tOWNER\tAGE\tDELETE AFTER")
+	_, err = fmt.Fprintln(w, "NAME\tSERVER\tSIZE\tOWNER\tAGE\tDELETE AFTER")
+	if err != nil {
+		return fmt.Errorf("failed to write header: %w", err)
+	}
 	for _, volume := range volumes {
 		deleteAfter := "-"
 		if !volume.Status.DeleteAfter.IsZero() {
 			deleteAfter = volume.Status.DeleteAfter.Format(time.RFC3339)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\n",
+		_, err = fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\n",
 			volume.Name,
 			volume.Spec.ServerName,
 			volume.Spec.Size,
 			volume.Status.Owner,
 			timeutil.FormatAge(volume.Status.Created),
 			deleteAfter)
+		if err != nil {
+			return fmt.Errorf("failed to write volume: %w", err)
+		}
 	}
-	return w.Flush()
+	err = w.Flush()
+	if err != nil {
+		return fmt.Errorf("failed to flush writer: %w", err)
+	}
+	return nil
 }
 
 func getVolume(volumeID string) error {
@@ -73,18 +83,28 @@ func getVolume(volumeID string) error {
 		return output.YAML(volume, os.Stdout)
 	default:
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tSERVER\tSIZE\tOWNER\tAGE\tDELETE AFTER")
+		_, err = fmt.Fprintln(w, "NAME\tSERVER\tSIZE\tOWNER\tAGE\tDELETE AFTER")
+		if err != nil {
+			return fmt.Errorf("failed to write header: %w", err)
+		}
 		deleteAfter := "-"
 		if !volume.Status.DeleteAfter.IsZero() {
 			deleteAfter = volume.Status.DeleteAfter.Format(time.RFC3339)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\n",
+		_, err = fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\n",
 			volume.Name,
 			volume.Spec.ServerName,
 			volume.Spec.Size,
 			volume.Status.Owner,
 			timeutil.FormatAge(volume.Status.Created),
 			deleteAfter)
-		return w.Flush()
+		if err != nil {
+			return fmt.Errorf("failed to write volume: %w", err)
+		}
+		err = w.Flush()
+		if err != nil {
+			return fmt.Errorf("failed to flush writer: %w", err)
+		}
+		return nil
 	}
 }

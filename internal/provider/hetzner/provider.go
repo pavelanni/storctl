@@ -21,12 +21,12 @@ type HetznerProvider struct {
 func New(cfg *config.Config) (*HetznerProvider, error) {
 	providerConfig := getProviderConfig(cfg, "hetzner")
 	if providerConfig == nil {
-		return nil, fmt.Errorf("provider config not found for hetzner")
+		return nil, fmt.Errorf("provider config not found for Hetzner")
 	}
 
 	token := providerConfig.Token
 	if token == "" {
-		return nil, fmt.Errorf("Hetzner API token is required")
+		return nil, fmt.Errorf("provider Hetzner API token is required")
 	}
 
 	// Create a new logger with the configured log level

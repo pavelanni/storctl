@@ -65,8 +65,8 @@ func (p *LimaProvider) ListVolumes(opts options.VolumeListOpts) ([]*types.Volume
 	defer cancel()
 
 	var labName string
-	if opts.ListOpts.LabelSelector != "" {
-		label := opts.ListOpts.LabelSelector
+	if opts.LabelSelector != "" {
+		label := opts.LabelSelector
 		labName = strings.TrimPrefix(label, "lab_name=")
 	}
 	listCmd := exec.CommandContext(ctx, "limactl", "disk", "list", "--json")

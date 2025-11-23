@@ -7,8 +7,12 @@
 *.so
 *.dylib
 
+# Binary built from source
+storctl
+
 # Test binary, built with `go test -c`
 *.test
+
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
@@ -53,3 +57,7 @@ credentials.json
 .aws/
 .hcloud/
 *vault*
+
+# PostgreSQL backups and data
+*.sql
+!migrations/*.sql

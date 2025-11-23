@@ -61,10 +61,10 @@ func NewCreateLabCmd() *cobra.Command {
 }
 
 func createLab(lab *types.Lab, opts CreateOpts) (*types.Lab, error) {
-	lab.ObjectMeta.Labels["owner"] = labelutil.SanitizeValue(cfg.Owner)
-	lab.ObjectMeta.Labels["organization"] = labelutil.SanitizeValue(cfg.Organization)
-	lab.ObjectMeta.Labels["email"] = labelutil.SanitizeValue(cfg.Email)
-	lab.ObjectMeta.Labels["lab_name"] = lab.ObjectMeta.Name
+	lab.Labels["owner"] = labelutil.SanitizeValue(cfg.Owner)
+	lab.Labels["organization"] = labelutil.SanitizeValue(cfg.Organization)
+	lab.Labels["email"] = labelutil.SanitizeValue(cfg.Email)
+	lab.Labels["lab_name"] = lab.Name
 	ttl := lab.Spec.TTL
 	if ttl == "" {
 		ttl = config.DefaultTTL
@@ -73,7 +73,7 @@ func createLab(lab *types.Lab, opts CreateOpts) (*types.Lab, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ttl: %w", err)
 	}
-	lab.ObjectMeta.Labels["delete_after"] = timeutil.FormatDeleteAfter(time.Now().Add(duration))
+	lab.Labels["delete_after"] = timeutil.FormatDeleteAfter(time.Now().Add(duration))
 
 	err = initProvider(lab.Spec.Provider)
 	if err != nil {
@@ -84,40 +84,40 @@ func createLab(lab *types.Lab, opts CreateOpts) (*types.Lab, error) {
 		return nil, fmt.Errorf("failed to initialize lab manager: %w", err)
 	}
 
-	fmt.Printf("Lab %s: Creating lab resources using provider %s...\n", lab.ObjectMeta.Name, lab.Spec.Provider)
+	fmt.Printf("Lab %s: Creating lab resources using provider %s...\n", lab.Name, lab.Spec.Provider)
 	labSvc.Logger.Info("Creating new lab",
-		"name", lab.ObjectMeta.Name,
+		"name", lab.Name,
 		"nodes", len(lab.Spec.Servers))
 	labSvc.Logger.Debug("Lab configuration", "lab", lab) // Detailed config for debugging
 	if err := labSvc.Create(lab); err != nil {           // labSvc is a package variable created in root.go
 		return nil, err
 	}
 	// get the lab again to get the status
-	labUpdated, err := labSvc.Get(lab.ObjectMeta.Name)
+	labUpdated, err := labSvc.Get(lab.Name)
 	if err != nil {
 		return nil, err
 	}
 	lab.Status = labUpdated.Status
 
 	if lab.Spec.Provider != "lima" && !opts.SkipDNS { // we don't need DNS records for local VMs
-		fmt.Printf("Lab %s: Creating DNS records...\n", lab.ObjectMeta.Name)
+		fmt.Printf("Lab %s: Creating DNS records...\n", lab.Name)
 		if err := addDNSRecords(lab); err != nil {
 			return nil, err
 		}
 	}
 	if opts.SkipInstall {
-		fmt.Printf("Lab %s: Skipping lab software installation.\n", lab.ObjectMeta.Name)
+		fmt.Printf("Lab %s: Skipping lab software installation.\n", lab.Name)
 		return lab, nil
 	}
-	fmt.Printf("Lab %s: Creating ansible inventory file...\n", lab.ObjectMeta.Name)
+	fmt.Printf("Lab %s: Creating ansible inventory file...\n", lab.Name)
 	err = labSvc.CreateAnsibleInventoryFile(lab)
 	if err != nil {
 		return nil, err
 	}
 	if lab.Spec.Ansible.Playbook != "" {
-		fmt.Printf("Lab %s: Running Ansible playbook %s...\n", lab.ObjectMeta.Name, lab.Spec.Ansible.Playbook)
+		fmt.Printf("Lab %s: Running Ansible playbook %s...\n", lab.Name, lab.Spec.Ansible.Playbook)
 	} else {
-		fmt.Printf("Lab %s: No playbook specified. Skipping Ansible configuration.\n", lab.ObjectMeta.Name)
+		fmt.Printf("Lab %s: No playbook specified. Skipping Ansible configuration.\n", lab.Name)
 	}
 
 	if lab.Spec.Ansible.Playbook != "" {
@@ -151,7 +151,7 @@ func labFromTemplate(template, name, provider, location, ttl, playbook string) (
 	}
 
 	// Set values with defaults using the common pattern:
-	lab.ObjectMeta.Name = name
+	lab.Name = name
 	lab.Spec.Provider = defaultIfEmpty(lab.Spec.Provider, provider)
 	lab.Spec.Location = defaultIfEmpty(lab.Spec.Location, location)
 	lab.Spec.TTL = defaultIfEmpty(lab.Spec.TTL, ttl)
@@ -166,7 +166,7 @@ func labFromTemplate(template, name, provider, location, ttl, playbook string) (
 }
 
 func addDNSRecords(lab *types.Lab) error {
-	labName, ok := lab.ObjectMeta.Labels["lab_name"]
+	labName, ok := lab.Labels["lab_name"]
 	if !ok {
 		labName = "no-lab"
 	}

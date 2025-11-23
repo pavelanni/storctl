@@ -17,6 +17,8 @@ An Architecture Decision Record (ADR) is a document that captures an important a
 * [ADR-0007](0007-error-handling-strategy.md) - Error Handling and Logging
 * [ADR-0008](0008-resource-lifecycle-management.md) - Resource Lifecycle Management
 * [ADR-0009](0009-logging-strategy.md) - Logging Strategy
+* [ADR-0010](0010-using-limactl.md) - Using limactl for Local VM Management
+* [ADR-0011](0011-storage-abstraction-layer.md) - Storage Abstraction Layer with PostgreSQL Support
 
 ## ADR Template
 
