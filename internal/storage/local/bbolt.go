@@ -80,7 +80,8 @@ func (s *Storage) Get(name string) (*types.Lab, error) {
 	return lab, err
 }
 
-func (s *Storage) List() ([]*types.Lab, error) {
+func (s *Storage) List(showDeleted bool) ([]*types.Lab, error) {
+	// Note: BoltDB doesn't support soft deletes, so showDeleted parameter is ignored
 	var labs []*types.Lab
 
 	err := s.db.View(func(tx *bbolt.Tx) error {

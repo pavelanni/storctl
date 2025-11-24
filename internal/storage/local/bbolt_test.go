@@ -128,7 +128,7 @@ func TestList(t *testing.T) {
 	t.Logf("✓ Two labs saved")
 
 	// List all labs
-	labs, err := storage.List()
+	labs, err := storage.List(false)
 	if err != nil {
 		t.Fatalf("failed to list labs: %v", err)
 	}
@@ -299,7 +299,7 @@ func TestEmptyDatabase(t *testing.T) {
 	defer cleanupTestData(t, storage)
 
 	// List on empty database should return empty slice, not error
-	labs, err := storage.List()
+	labs, err := storage.List(false)
 	if err != nil {
 		t.Fatalf("listing empty database failed: %v", err)
 	}

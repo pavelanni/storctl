@@ -6,12 +6,15 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/pavelanni/storctl/internal/lab"
 	"github.com/pavelanni/storctl/internal/util/output"
 	"github.com/pavelanni/storctl/internal/util/timeutil"
 	"github.com/spf13/cobra"
 )
 
 func NewGetLabCmd() *cobra.Command {
+	var showDeleted bool
+
 	cmd := &cobra.Command{
 		Use:   "lab [lab-id]",
 		Short: "Get information about labs",
@@ -19,28 +22,39 @@ func NewGetLabCmd() *cobra.Command {
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return listLabs()
+				return listLabs(showDeleted)
 			}
 			return getLab(args[0])
 		},
 	}
 
+	cmd.Flags().BoolVar(&showDeleted, "show-deleted", false, "Show soft-deleted labs")
+
 	return cmd
 }
 
-func listLabs() error {
-	err := initProvider(useProvider)
+func listLabs(showDeleted bool) error {
+	// For listing labs from storage, we don't need a provider
+	// Initialize lab manager with nil provider for storage-only operations
+	var err error
+	labSvc, err = lab.NewManager(nil, cfg)
+	if err != nil {
+		return fmt.Errorf("error initializing lab manager: %w", err)
+	}
+	labs, err := labSvc.List(showDeleted)
 	if err != nil {
 		return err
 	}
-	err = initLabManager()
-	if err != nil {
-		return err
+
+	labSvc.Logger.Debug("Retrieved labs from storage", "count", len(labs))
+	for i, lab := range labs {
+		labSvc.Logger.Debug("Lab details",
+			"index", i,
+			"name", lab.Name,
+			"servers", len(lab.Status.Servers),
+			"volumes", len(lab.Status.Volumes))
 	}
-	labs, err := labSvc.List()
-	if err != nil {
-		return err
-	}
+
 	// Create a new tabwriter
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 

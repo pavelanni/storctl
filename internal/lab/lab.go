@@ -26,7 +26,7 @@ import (
 type Manager interface {
 	Create(lab *types.Lab) error
 	Get(labName string) (*types.Lab, error)
-	List() ([]*types.Lab, error)
+	List(showDeleted bool) ([]*types.Lab, error)
 	Delete(labName string, force bool) error
 	SyncLabs() error
 	CreateAnsibleInventoryFile(lab *types.Lab) error
@@ -44,6 +44,9 @@ var DefaultManager *ManagerSvc
 
 var _ Manager = (*ManagerSvc)(nil)
 
+// NewManager creates a new lab manager.
+// The provider parameter can be nil for storage-only operations (List, Get from storage).
+// For operations that interact with cloud providers (Create, Delete, SyncLabs), a valid provider is required.
 func NewManager(provider provider.CloudProvider, cfg *config.Config) (*ManagerSvc, error) {
 	sshManager := ssh.NewManager(cfg)
 	var storage storage.Storage
@@ -70,6 +73,9 @@ func NewManager(provider provider.CloudProvider, cfg *config.Config) (*ManagerSv
 // It creates the lab in the cloud and stores the lab in the local storage
 // It creates servers, volumes, and ssh keys
 func (m *ManagerSvc) Create(lab *types.Lab) error {
+	if m.Provider == nil {
+		return fmt.Errorf("provider is required for Create operation")
+	}
 	switch lab.Spec.Provider {
 	case "lima":
 		err := m.createLabLima(lab)
@@ -109,6 +115,10 @@ func (m *ManagerSvc) Get(labName string) (*types.Lab, error) {
 	if err == nil {
 		return lab, nil
 	}
+	// Lab not found in storage, try to sync from provider
+	if m.Provider == nil {
+		return nil, fmt.Errorf("lab %s not found in storage and no provider configured to sync from", labName)
+	}
 	lab, err = m.syncLabFromProvider(labName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sync lab from provider: %w", err)
@@ -116,10 +126,10 @@ func (m *ManagerSvc) Get(labName string) (*types.Lab, error) {
 	return lab, nil
 }
 
-func (m *ManagerSvc) List() ([]*types.Lab, error) {
+func (m *ManagerSvc) List(showDeleted bool) ([]*types.Lab, error) {
 	var labs []*types.Lab
 
-	labs, err := m.Storage.List()
+	labs, err := m.Storage.List(showDeleted)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list labs: %w", err)
 	}
@@ -127,6 +137,9 @@ func (m *ManagerSvc) List() ([]*types.Lab, error) {
 }
 
 func (m *ManagerSvc) SyncLabs() error {
+	if m.Provider == nil {
+		return fmt.Errorf("provider is required for SyncLabs operation")
+	}
 	labsMap := make(map[string]*types.Lab)
 	allServers, err := m.Provider.AllServers()
 	if err != nil {
@@ -155,6 +168,9 @@ func (m *ManagerSvc) SyncLabs() error {
 }
 
 func (m *ManagerSvc) Delete(labName string, force bool) error {
+	if m.Provider == nil {
+		return fmt.Errorf("provider is required for Delete operation")
+	}
 	var err error
 	switch m.Provider.Name() {
 	case "lima":
@@ -281,7 +297,7 @@ func (m *ManagerSvc) createLabLima(lab *types.Lab) error {
 			serverAdditionalDisks = []options.AdditionalDisk{}
 		}
 		fmt.Printf("Creating server %s with additional disks: %v\n", s.Name, serverAdditionalDisks)
-		server, err := m.Provider.CreateServer(options.ServerCreateOpts{
+		serverCreateOpts := options.ServerCreateOpts{
 			Name:            s.Name,
 			Type:            s.Spec.ServerType,
 			Image:           s.Spec.Image,
@@ -289,7 +305,9 @@ func (m *ManagerSvc) createLabLima(lab *types.Lab) error {
 			Provider:        s.Spec.Provider,
 			Labels:          s.Labels,
 			AdditionalDisks: serverAdditionalDisks,
-		})
+		}
+		logger.Get().Debug("creating server", "config", serverCreateOpts)
+		server, err := m.Provider.CreateServer(serverCreateOpts)
 		if err != nil {
 			return fmt.Errorf("failed to create server: %w", err)
 		}
@@ -393,6 +411,10 @@ func (m *ManagerSvc) createLabHetzner(lab *types.Lab) error {
 		}
 	}
 	fmt.Println("Servers are ready")
+
+	// Assign servers to lab status
+	lab.Status.Servers = servers
+
 	// Create volumes
 	volumesString := ""
 	for _, volumeSpec := range lab.Spec.Volumes {
@@ -400,6 +422,7 @@ func (m *ManagerSvc) createLabHetzner(lab *types.Lab) error {
 	}
 	fmt.Printf("Creating %d volumes: %s\n", len(lab.Spec.Volumes), volumesString)
 	volumes := lab.Spec.Volumes
+	createdVolumes := make([]*types.Volume, 0, len(volumes))
 	for _, volumeSpec := range volumes {
 		if !volumeSpec.Automount { // if not specified, default to false
 			volumeSpec.Automount = config.DefaultVolumeAutomount
@@ -424,7 +447,7 @@ func (m *ManagerSvc) createLabHetzner(lab *types.Lab) error {
 			},
 		}
 		fmt.Printf("Creating volume %s...\n", v.Name)
-		_, err := m.Provider.CreateVolume(options.VolumeCreateOpts{
+		volume, err := m.Provider.CreateVolume(options.VolumeCreateOpts{
 			Name:       v.Name,
 			Size:       v.Spec.Size,
 			ServerName: v.Spec.ServerName,
@@ -435,7 +458,11 @@ func (m *ManagerSvc) createLabHetzner(lab *types.Lab) error {
 		if err != nil {
 			return fmt.Errorf("failed to create volume: %w", err)
 		}
+		createdVolumes = append(createdVolumes, volume)
 	}
+
+	// Assign volumes to lab status
+	lab.Status.Volumes = createdVolumes
 
 	return nil
 }

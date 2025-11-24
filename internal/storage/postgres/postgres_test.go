@@ -129,7 +129,7 @@ func TestList(t *testing.T) {
 	t.Logf("✓ Two labs saved")
 
 	// List all labs
-	labs, err := storage.List()
+	labs, err := storage.List(false)
 	if err != nil {
 		t.Fatalf("failed to list labs: %v", err)
 	}

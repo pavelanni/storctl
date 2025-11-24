@@ -67,7 +67,12 @@ func (s *Storage) Get(name string) (*types.Lab, error) {
 		return nil, fmt.Errorf("failed to get lab: %w", err)
 	}
 
-	lab := &types.Lab{}
+	lab := &types.Lab{
+		TypeMeta: types.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Lab",
+		},
+	}
 	err = json.Unmarshal(metadata, &lab.ObjectMeta)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
@@ -85,15 +90,20 @@ func (s *Storage) Get(name string) (*types.Lab, error) {
 	return lab, nil
 }
 
-func (s *Storage) List() ([]*types.Lab, error) {
-	rows, err := s.db.Query(`
-		SELECT name, metadata, spec, status
-		FROM labs
-		WHERE deleted_at IS NULL
-	`)
+func (s *Storage) List(showDeleted bool) ([]*types.Lab, error) {
+	s.logger.Debug("Executing List query", "showDeleted", showDeleted)
+
+	query := `SELECT name, metadata, spec, status FROM labs`
+	if !showDeleted {
+		query += ` WHERE deleted_at IS NULL`
+	}
+
+	rows, err := s.db.Query(query)
 	if err != nil {
+		s.logger.Error("Query failed", "error", err)
 		return nil, fmt.Errorf("failed to query labs: %w", err)
 	}
+	s.logger.Debug("Query executed successfully")
 	defer func() {
 		if err := rows.Close(); err != nil {
 			s.logger.Error("failed to close rows", "error", err)
@@ -101,14 +111,23 @@ func (s *Storage) List() ([]*types.Lab, error) {
 	}()
 
 	var labs []*types.Lab
+	rowCount := 0
 	for rows.Next() {
+		rowCount++
 		var name string
 		var metadata, spec, status []byte
 		err = rows.Scan(&name, &metadata, &spec, &status)
 		if err != nil {
+			s.logger.Error("Failed to scan row", "error", err, "rowCount", rowCount)
 			return nil, fmt.Errorf("failed to scan lab: %w", err)
 		}
-		lab := &types.Lab{}
+		s.logger.Debug("Scanned row", "name", name, "rowCount", rowCount)
+		lab := &types.Lab{
+			TypeMeta: types.TypeMeta{
+				APIVersion: "v1",
+				Kind:       "Lab",
+			},
+		}
 		err = json.Unmarshal(metadata, &lab.ObjectMeta)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
@@ -124,6 +143,14 @@ func (s *Storage) List() ([]*types.Lab, error) {
 		lab.Name = name
 		labs = append(labs, lab)
 	}
+
+	// Check for errors from iterating over rows
+	if err = rows.Err(); err != nil {
+		s.logger.Error("Error iterating over rows", "error", err)
+		return nil, fmt.Errorf("error iterating over rows: %w", err)
+	}
+
+	s.logger.Debug("List completed", "totalRows", rowCount, "labsReturned", len(labs))
 	return labs, nil
 }
 

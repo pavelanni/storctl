@@ -123,7 +123,7 @@ func TestStorageBackendSwitching(t *testing.T) {
 			t.Logf("✓ Lab retrieved from %s backend", tt.storageType)
 
 			// Test List
-			labs, err := manager.Storage.List()
+			labs, err := manager.Storage.List(false)
 			if err != nil {
 				t.Fatalf("failed to list labs from %s: %v", tt.storageType, err)
 			}

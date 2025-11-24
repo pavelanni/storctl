@@ -166,6 +166,11 @@ func labFromTemplate(template, name, provider, location, ttl, playbook string) (
 }
 
 func addDNSRecords(lab *types.Lab) error {
+	// Verify lab has servers before attempting DNS creation
+	if len(lab.Status.Servers) == 0 {
+		return fmt.Errorf("no servers found in lab status, cannot create DNS records")
+	}
+
 	labName, ok := lab.Labels["lab_name"]
 	if !ok {
 		labName = "no-lab"
