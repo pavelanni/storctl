@@ -50,13 +50,37 @@ All resources follow Kubernetes-style YAML manifests with:
 1. Lab creation (`Create`) creates servers, volumes, and SSH keys via provider
 1. For Hetzner: creates lab-specific SSH key, waits for servers to be SSH-ready
 1. For Lima: creates volumes first, then servers with attached volumes
+1. **CRITICAL:** Provider-specific creation functions **must** populate `lab.Status`:
+   - `lab.Status.Servers = servers` after server creation
+   - `lab.Status.Volumes = volumes` after volume creation
+   - Without this, downstream operations (DNS, Ansible) will fail
 1. Lab data stored in configured backend (PostgreSQL or BoltDB)
    - PostgreSQL: Remote database with soft deletes, ACID transactions
    - BoltDB: Local file at `~/.storctl/labs.db` (embedded database)
+1. Lab listing supports `--show-deleted` flag (PostgreSQL only)
 1. `SyncLabs()` fetches labs from provider by querying servers with `lab_name` label
 1. `install lab` generates Ansible inventory and runs embedded playbooks to install K3s + AIStor
 
 ## Development commands
+
+### Common CLI operations
+
+```bash
+# List active labs from storage
+go run . get lab
+
+# List all labs including soft-deleted (PostgreSQL only)
+go run . get lab --show-deleted
+
+# Get specific lab details
+go run . get lab <lab-name>
+
+# Create lab from manifest
+go run . create -f examples/lab-hetzner-snsd.yaml
+
+# Delete lab (soft delete in PostgreSQL, hard delete in BoltDB)
+go run . delete lab <lab-name>
+```
 
 ### Build
 
@@ -148,6 +172,30 @@ Update `internal/provider/factory.go` to add the new provider case.
 
 ## Important implementation details
 
+### Optional provider for storage operations
+
+The lab manager supports `nil` provider for storage-only operations:
+
+```go
+// Storage-only operations (List, Get from storage)
+labSvc, err := lab.NewManager(nil, cfg)  // provider = nil
+labs, err := labSvc.List(false)          // works without provider
+
+// Operations requiring provider will return clear error
+err := labSvc.Create(lab)  // Error: "provider is required for Create operation"
+```
+
+**When provider is required:**
+- `Create()` - Creates resources on cloud provider
+- `Delete()` - Deletes resources from cloud provider
+- `SyncLabs()` - Fetches labs from cloud provider
+
+**When provider is optional (can be nil):**
+- `List()` - Lists labs from storage backend
+- `Get()` - Gets lab from storage (falls back to provider sync if not found)
+
+This pattern improves performance by avoiding unnecessary provider initialization and API calls when only querying local/remote storage.
+
 ### Time-to-live (TTL)
 
 Resources support TTL for automatic cleanup. TTL is parsed in `internal/util/timeutil` and stored as `DeleteAfter` timestamp in Status. Default TTL is 1 hour (see `config.DefaultTTL`).
@@ -176,7 +224,7 @@ The storage layer uses an interface-based architecture supporting multiple backe
 type Storage interface {
     Save(lab *types.Lab) error
     Get(name string) (*types.Lab, error)
-    List() ([]*types.Lab, error)
+    List(showDeleted bool) ([]*types.Lab, error)
     Delete(name string) error
     Close() error
 }
@@ -184,16 +232,19 @@ type Storage interface {
 
 **Implementations:**
 - **PostgreSQL** (`internal/storage/postgres/`) - Remote database, production-ready
-  - Full CRUD operations
-  - Soft deletes (sets `deleted_at` timestamp)
+  - Full CRUD operations with soft deletes
+  - `Delete()` sets `deleted_at` timestamp (soft delete)
+  - `List(showDeleted)` conditionally filters deleted labs:
+    - `List(false)` - Only active labs (WHERE deleted_at IS NULL)
+    - `List(true)` - All labs including soft-deleted
   - UPSERT on conflict (ON CONFLICT DO UPDATE)
   - Requires `_ "github.com/lib/pq"` driver import
   - Connection string: `host=%s port=%s dbname=%s user=%s password=%s sslmode=disable`
   - Schema in `migrations/001_initial.sql` (labs + audit_logs tables)
 
 - **BoltDB** (`internal/storage/local/`) - Local embedded database
-  - Save() implemented
-  - Get/List/Delete need implementation (currently stubs)
+  - Full CRUD operations implemented
+  - `List(showDeleted)` ignores parameter (BoltDB uses hard deletes)
   - No server required, single file at `~/.storctl/labs.db`
 
 **Configuration** (`config.yaml`):
@@ -230,6 +281,69 @@ func NewManager(provider provider.CloudProvider, cfg *config.Config) (*ManagerSv
 ```
 
 **Important:** Never use pointer to interface (`*storage.Storage`). Interfaces are already reference types internally.
+
+## Known issues and solutions
+
+### Empty lab.Status after Hetzner creation (FIXED)
+
+**Problem:** Lab created successfully on Hetzner but downstream operations (DNS, Ansible) failed because `lab.Status.Servers` was empty.
+
+**Root cause:** The `createLabHetzner()` function collected servers and volumes in local variables but never assigned them to `lab.Status` before returning. The Lima implementation had these assignments, but they were missing in Hetzner.
+
+**Solution:** Always assign collected resources to lab.Status:
+```go
+// After creating servers
+servers := make([]*types.Server, 0)
+for _, serverSpec := range specServers {
+    result, err := m.Provider.CreateServer(...)
+    servers = append(servers, result)
+}
+// ✅ CRITICAL: Assign to lab.Status
+lab.Status.Servers = servers
+
+// After creating volumes
+createdVolumes := make([]*types.Volume, 0, len(volumes))
+for _, volumeSpec := range volumes {
+    volume, err := m.Provider.CreateVolume(...)
+    createdVolumes = append(createdVolumes, volume)
+}
+// ✅ CRITICAL: Assign to lab.Status
+lab.Status.Volumes = createdVolumes
+```
+
+**Prevention:** When adding new provider implementations, compare with existing working implementations (Lima) to ensure all Status fields are populated.
+
+### PostgreSQL List() returning empty results (FIXED)
+
+**Problem:** Labs visible in database but `List()` returned empty array with no error.
+
+**Root cause:** Missing `rows.Err()` check after `rows.Next()` loop. In Go's `database/sql`, iteration errors don't surface until you call `rows.Err()`.
+
+**Solution:** Always check `rows.Err()` after iteration:
+```go
+for rows.Next() {
+    // scan rows...
+}
+// ✅ Check for iteration errors
+if err = rows.Err(); err != nil {
+    return nil, fmt.Errorf("error iterating over rows: %w", err)
+}
+```
+
+### Index out of range panic in DNS creation (FIXED)
+
+**Problem:** Panic when accessing `lab.Status.Servers[0]` during DNS record creation.
+
+**Root cause:** Code assumed servers exist without checking. Could happen if Status wasn't populated or if lab has no servers.
+
+**Solution:** Always check slice length before accessing:
+```go
+// ✅ Check before accessing
+if len(lab.Status.Servers) == 0 {
+    return fmt.Errorf("no servers found in lab status, cannot create DNS records")
+}
+cpPublicNet := lab.Status.Servers[0].Status.PublicNet
+```
 
 ## Common patterns and best practices
 
