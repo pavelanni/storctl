@@ -1,22 +1,21 @@
 # storctl - AIStor Environment Manager
 
-`storctl` is a command-line tool for managing demo and lab environments in cloud infrastructure or on the local host using virtual machines.
+`storctl` is a command-line tool for managing demo and lab environments on Hetzner Cloud infrastructure.
 The main focus of this tool is on MinIO AIStor testing, training, and demonstration.
 
 ## Features
 
-- Create and manage lab environments with multiple servers and volumes
+- Create and manage lab environments with multiple servers and volumes on Hetzner Cloud
 - Manage DNS records with Cloudflare
-- Use Lima virtual machines on macOS or Hetzner Cloud infrastructure (currently)
-- Manage SSH keys to access cloud VMs
-- Manage cloud resource lifecycle with TTL (Time To Live)
-- Use YAML-based configuration and resource definitions similar to Kubernetes
+- Automated Kubernetes (K3s) and AIStor installation via Ansible
+- Manage SSH keys for secure VM access
+- Cloud resource lifecycle management with TTL (Time To Live)
+- YAML-based configuration and resource definitions similar to Kubernetes
+- Centralized PostgreSQL database for multi-user lab state management
 
 ## Installation
 
 ### Prerequisites
-
-#### For both deployments
 
 1. `kubectl` is installed. If it's not installed on your machine, follow these [instructions](https://kubernetes.io/docs/tasks/tools/#kubectl)
 
@@ -29,71 +28,12 @@ The main focus of this tool is on MinIO AIStor testing, training, and demonstrat
 
 1. Ansible is installed. If it's not installed on your machine, follow these [instructions](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html). On a Mac, you can simply `brew install ansible`.
 
-#### For local deployment
-
-Local AIStor installation uses Lima to manage virtual machines, QEMU as a virtualization engine, and `socket_vmnet` for the network.
-We have to use QEMU with `socket_vmnet` shared network to allow the VMs to talk to each other and being able to access the VMs from the host.
-
-1. Install Lima.
-
-   ```shell
-   brew install lima
-   ```
-
-1. Install QEMU
-
-   ```shell
-   brew install qemu
-   ```
-
-1. Check if you have already installed Xcode command tools (which is very likely)
-
-   ```shell
-   xcode-select -p
-   ```
-
-   Expected output:
-
-   ```none
-   /Library/Developer/CommandLineTools
-   ```
-
-   If it's not installed, run:
-
-   ```shell
-   xcode-select --install
-   ```
-
-1. Build and install the network driver for `socket_vmnet`. The full instructions and explanation is provided on the official [Lima site](https://lima-vm.io/docs/config/network/#socket_vmnet).
-   Here is a short version of it:
-
-   ```shell
-   # Install socket_vmnet as root from source to /opt/socket_vmnet
-   # using instructions on https://github.com/lima-vm/socket_vmnet
-   # This assumes that Xcode Command Line Tools are already installed
-   git clone https://github.com/lima-vm/socket_vmnet
-   cd socket_vmnet
-   # Change "v1.2.1" to the actual latest release in https://github.com/lima-vm/socket_vmnet/releases
-   git checkout v1.2.1
-   make
-   sudo make PREFIX=/opt/socket_vmnet install.bin
-
-   # Set up the sudoers file for launching socket_vmnet from Lima
-   limactl sudoers >etc_sudoers.d_lima
-   less etc_sudoers.d_lima  # verify that the file looks correct
-   sudo install -o root etc_sudoers.d_lima /etc/sudoers.d/lima
-   rm etc_sudoers.d_lima
-   ```
-
-1. Note: Lima might give you an error message about the `docker.sock` file.
-   In that case, just delete the file mentioned in the error message.
-
-#### For cloud deployment
-
-1. Get a Hetzner Cloud account and API token. Ask the Traning team for access to the MinIO shared project.
+1. Get a Hetzner Cloud account and API token. Ask the Training team for access to the MinIO shared project.
 
 1. Get a Cloudflare account and API token (for DNS management) from the Training team.
    You don't need it if you prefer to use your own domain.
+
+1. PostgreSQL database for storing lab state. You can use the provided scripts to run PostgreSQL locally (see PostgreSQL Setup section below).
 
 ### Using released binaries (recommended)
 
@@ -123,28 +63,60 @@ This creates a default configuration directory at `~/.storctl` with the followin
 - `templates/` -- Lab environment templates
 - `keys/` -- SSH key storage
 - `ansible/` -- for Ansible playbooks and inventory files
-- `lima/` -- for Lima configs
+- `postgres-data/` -- PostgreSQL data directory (when using local PostgreSQL)
+- `backups/` -- PostgreSQL database backups
 
 1. Edit the configuration file at `~/.storctl/config.yaml`:
 
 ```yaml
 providers:
   - name: "hetzner"
-    token: "your-hetzner-token" # add your Hetzner Cloud token if you are going to use cloud installation
-    location: "nbg1" # EU locations: nbd1, fsn1, hel1; US locations: ash, hil; APAC locations: sin
-  - name: "lima"
+    token: "your-hetzner-token"
+    location: "nbg1" # EU locations: nbg1, fsn1, hel1; US locations: ash, hil; APAC locations: sin
 
-dns: # this section is not used by local installation
+dns:
   provider: "cloudflare"
-  token: "your-cloudflare-token" # add your Cloudflare token if you're going to use cloud installation
-  zone_id: "your-zone-id" # add your Cloudflare Zone ID if you're going to use cloud installation
+  token: "your-cloudflare-token"
+  zone_id: "your-zone-id"
   domain: "aistorlabs.com" # feel free to use your own domain
 
-# this section is not used by local installation
+storage:
+  type: postgres  # defaults to postgres if not specified
+  postgres:
+    host: localhost
+    port: 5432
+    database: storctl_dev
+    user: postgres
+    password: storctl
+
 email: "your-email@example.com"
 organization: "your-organization"
 owner: "your-name"
 ```
+
+## PostgreSQL setup
+
+For development, PostgreSQL can be run locally using Podman with persistent data storage:
+
+```bash
+# Start PostgreSQL (creates container, applies migrations if needed)
+./scripts/start-postgres.sh
+
+# Stop PostgreSQL
+./scripts/stop-postgres.sh
+
+# Backup database
+./scripts/backup-postgres.sh
+
+# Restore from backup
+./scripts/restore-postgres.sh <backup-file>
+```
+
+The PostgreSQL data is stored at `~/.storctl/postgres-data` on your Mac filesystem, which survives container recreation and Podman machine restarts.
+
+For production deployments, configure a dedicated PostgreSQL server in the `storage.postgres` section of your config.
+
+See `docs/POSTGRESQL_SETUP.md` for detailed documentation.
 
 ## Usage
 
@@ -333,42 +305,20 @@ volumes:
 
 1. Use the Object Store console the usual way.
 
-## Starting and stopping
-
-If you reboot your Mac you Lima VMs will stop. You have to start them to continue using the lab.
-Run this command to list all VMs:
-
-```shell
-limactl list
-```
-
-Expected output:
-
-```none
-NAME             STATUS     SSH            VMTYPE    ARCH       CPUS    MEMORY    DISK     DIR
-mylab-cp         Stopped    127.0.0.1:0    qemu      aarch64    2       4GiB      40GiB    ~/.lima/mylab-cp
-mylab-node-01    Stopped    127.0.0.1:0    qemu      aarch64    2       4GiB      40GiB    ~/.lima/mylab-node-01
-```
-
-Start the VMs:
-
-```shell
-limactl start mylab-cp
-limactl start mylab-node-01
-```
-
-Then access your cluster as described above.
-
 ## Shell access to the nodes
 
-You can access each Lima VM with:
+You can SSH into any server in your lab using the lab-specific SSH key:
 
 ```shell
-limactl shell mylab-cp
+# SSH into control plane
+ssh -i ~/.storctl/keys/mylab-admin ansible@mylab-cp.aistorlabs.com
+
+# SSH into a worker node
+ssh -i ~/.storctl/keys/mylab-admin ansible@mylab-node-01.aistorlabs.com
 ```
 
-All necessary tools, like `mc`, `warp`, `kubectl` are installed on the control plane node.
-You are logged in as a normal user but you can run `sudo` to access root commands.
+All necessary tools like `mc`, `warp`, and `kubectl` are installed on the control plane node.
+You are logged in as the `ansible` user but can run `sudo` to access root commands.
 
 ## Resource management
 

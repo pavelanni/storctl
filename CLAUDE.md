@@ -4,33 +4,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-storctl is a CLI tool for managing demo and lab environments for MinIO AIStor testing, training, and demonstrations. It supports both local deployment (using Lima VMs on macOS) and cloud deployment (currently Hetzner Cloud). The tool manages the complete lifecycle of lab environments including servers, volumes, DNS records, SSH keys, and automated Kubernetes + AIStor installation via Ansible.
+storctl is a CLI tool for managing demo and lab environments for MinIO AIStor testing, training, and demonstrations on Hetzner Cloud. The tool manages the complete lifecycle of lab environments including servers, volumes, DNS records, SSH keys, and automated Kubernetes + AIStor installation via Ansible. All lab state is stored in a centralized PostgreSQL database for multi-user access and persistence.
 
 ## Architecture
 
 ### Core concepts
 
-The codebase follows a provider pattern where different infrastructure providers (Lima for local VMs, Hetzner for cloud) implement a common `CloudProvider` interface. Resources follow a Kubernetes-style API model with TypeMeta, ObjectMeta, Spec, and Status fields.
+The codebase follows a provider pattern where cloud infrastructure providers (currently Hetzner Cloud, with future support for AWS and DigitalOcean planned) implement a common `CloudProvider` interface. Resources follow a Kubernetes-style API model with TypeMeta, ObjectMeta, Spec, and Status fields. The provider interface enables easy addition of new cloud providers without changing core logic.
 
 ### Key packages
 
 - `cmd/` - Cobra CLI commands organized by action (create, get, delete, install)
 - `internal/types` - Core resource types (Lab, Server, Volume, SSHKey) with Kubernetes-style structure
 - `internal/provider` - Provider interface and implementations
-  - `provider/hetzner` - Hetzner Cloud provider implementation
-  - `provider/lima` - Lima VM provider for local development
+  - `provider/hetzner` - Hetzner Cloud provider implementation (production)
+  - `provider/mock` - Mock provider for testing
   - `provider/factory.go` - Factory function to create providers based on config
 - `internal/storage` - Storage abstraction layer
   - `storage/interface.go` - Storage interface (Save, Get, List, Delete, Close)
-  - `storage/postgres/` - PostgreSQL implementation (production-ready)
-  - `storage/local/` - BoltDB implementation (partial, needs Get/List/Delete)
+  - `storage/postgres/` - PostgreSQL implementation (only backend supported)
 - `internal/lab` - Lab manager that orchestrates multi-resource operations
-  - Selects storage backend based on config (PostgreSQL or BoltDB)
+  - Uses PostgreSQL storage for centralized state
   - Ansible inventory generation and playbook execution
   - Provider-specific lab creation/deletion logic
 - `internal/config` - Configuration management and constants
 - `internal/ssh` - SSH key management
-- `internal/dns` - DNS management (Cloudflare)
+- `internal/dns` - DNS management (currently Cloudflare, Route53 planned)
 - `assets/` - Embedded Ansible playbooks and templates using Go embed
 - `migrations/` - Database migrations (PostgreSQL schema)
 - `scripts/` - Helper scripts for PostgreSQL management
@@ -47,17 +46,19 @@ All resources follow Kubernetes-style YAML manifests with:
 
 ### Lab lifecycle
 
-1. Lab creation (`Create`) creates servers, volumes, and SSH keys via provider
-1. For Hetzner: creates lab-specific SSH key, waits for servers to be SSH-ready
-1. For Lima: creates volumes first, then servers with attached volumes
+1. Lab creation (`Create`) creates servers, volumes, and SSH keys via Hetzner Cloud
+1. Creates lab-specific SSH key for Ansible access
+1. Creates servers and waits for SSH readiness (using `serverchecker` package)
+1. Creates volumes and attaches to servers
 1. **CRITICAL:** Provider-specific creation functions **must** populate `lab.Status`:
    - `lab.Status.Servers = servers` after server creation
    - `lab.Status.Volumes = volumes` after volume creation
    - Without this, downstream operations (DNS, Ansible) will fail
-1. Lab data stored in configured backend (PostgreSQL or BoltDB)
-   - PostgreSQL: Remote database with soft deletes, ACID transactions
-   - BoltDB: Local file at `~/.storctl/labs.db` (embedded database)
-1. Lab listing supports `--show-deleted` flag (PostgreSQL only)
+1. Lab data stored in PostgreSQL database
+   - Centralized remote database with soft deletes
+   - ACID transactions ensure data consistency
+   - Supports multi-user access and persistence
+1. Lab listing supports `--show-deleted` flag to view soft-deleted labs
 1. `SyncLabs()` fetches labs from provider by querying servers with `lab_name` label
 1. `install lab` generates Ansible inventory and runs embedded playbooks to install K3s + AIStor
 
@@ -78,7 +79,7 @@ go run . get lab <lab-name>
 # Create lab from manifest
 go run . create -f examples/lab-hetzner-snsd.yaml
 
-# Delete lab (soft delete in PostgreSQL, hard delete in BoltDB)
+# Delete lab (soft delete in PostgreSQL)
 go run . delete lab <lab-name>
 ```
 
@@ -123,14 +124,12 @@ Version info is injected at build time via ldflags (see `.goreleaser.yaml`):
 
 Configuration stored at `~/.storctl/`:
 
-- `config.yaml` - Main config (providers, DNS, credentials, storage backend)
-- `labs.db` - BoltDB database for lab metadata (if using local storage)
-- `postgres-data/` - PostgreSQL data directory (if using PostgreSQL storage with host mount)
+- `config.yaml` - Main config (Hetzner credentials, DNS, PostgreSQL connection)
+- `postgres-data/` - PostgreSQL data directory (when using local PostgreSQL with host mount)
 - `backups/` - PostgreSQL database backups (created by `scripts/backup-postgres.sh`)
-- `keys/` - SSH keys
+- `keys/` - SSH keys for lab access
 - `ansible/` - Generated Ansible inventory files
-- `lima/` - Lima VM configs
-- `templates/` - Lab templates
+- `templates/` - Lab templates (YAML manifests)
 
 ## PostgreSQL setup (for development)
 
@@ -212,7 +211,7 @@ Hetzner labs use `internal/util/serverchecker` to verify SSH connectivity before
 
 - Playbooks embedded via `assets/PlaybookFiles` (Go embed.FS)
 - Inventory generated dynamically from lab servers in JSON format
-- Different SSH users for Lima (current user) vs Hetzner (ansible user)
+- Uses 'ansible' user on Hetzner Cloud servers (configured via cloud-init)
 - Playbooks install K3s, DirectPV, Helm, and AIStor
 
 ### Storage abstraction
@@ -231,7 +230,7 @@ type Storage interface {
 ```
 
 **Implementations:**
-- **PostgreSQL** (`internal/storage/postgres/`) - Remote database, production-ready
+- **PostgreSQL** (`internal/storage/postgres/`) - Remote database (only supported backend)
   - Full CRUD operations with soft deletes
   - `Delete()` sets `deleted_at` timestamp (soft delete)
   - `List(showDeleted)` conditionally filters deleted labs:
@@ -242,24 +241,18 @@ type Storage interface {
   - Connection string: `host=%s port=%s dbname=%s user=%s password=%s sslmode=disable`
   - Schema in `migrations/001_initial.sql` (labs + audit_logs tables)
 
-- **BoltDB** (`internal/storage/local/`) - Local embedded database
-  - Full CRUD operations implemented
-  - `List(showDeleted)` ignores parameter (BoltDB uses hard deletes)
-  - No server required, single file at `~/.storctl/labs.db`
+**Note:** BoltDB support was removed in favor of centralized PostgreSQL for multi-user access. The Storage interface remains for potential future backends (e.g., Hetzner Object Storage).
 
 **Configuration** (`config.yaml`):
 ```yaml
 storage:
-  type: postgres  # or "local" for BoltDB
+  type: postgres  # defaults to postgres if not specified
   postgres:
     host: localhost
     port: 5432
     database: storctl_dev
     user: postgres
     password: storctl
-  local:
-    path: ~/.storctl/labs.db
-    bucket: labs
 ```
 
 **Backend selection** in `internal/lab/lab.go`:
@@ -268,10 +261,13 @@ func NewManager(provider provider.CloudProvider, cfg *config.Config) (*ManagerSv
     var storage storage.Storage  // interface, NOT pointer to interface
 
     switch cfg.Storage.Type {
-    case "postgres":
+    case "postgres", "":  // empty string defaults to postgres
         storage, err = postgres.New(cfg)
-    case "local", "":
-        storage, err = local.New(cfg)
+        if err != nil {
+            return nil, fmt.Errorf("failed to create lab storage: %w", err)
+        }
+    default:
+        return nil, fmt.Errorf("invalid storage type: %s (only 'postgres' is supported)", cfg.Storage.Type)
     }
 
     return &ManagerSvc{
@@ -288,7 +284,7 @@ func NewManager(provider provider.CloudProvider, cfg *config.Config) (*ManagerSv
 
 **Problem:** Lab created successfully on Hetzner but downstream operations (DNS, Ansible) failed because `lab.Status.Servers` was empty.
 
-**Root cause:** The `createLabHetzner()` function collected servers and volumes in local variables but never assigned them to `lab.Status` before returning. The Lima implementation had these assignments, but they were missing in Hetzner.
+**Root cause:** The `createLabHetzner()` function collected servers and volumes in local variables but never assigned them to `lab.Status` before returning.
 
 **Solution:** Always assign collected resources to lab.Status:
 ```go
@@ -311,7 +307,7 @@ for _, volumeSpec := range volumes {
 lab.Status.Volumes = createdVolumes
 ```
 
-**Prevention:** When adding new provider implementations, compare with existing working implementations (Lima) to ensure all Status fields are populated.
+**Prevention:** When adding new provider implementations, ensure all Status fields are properly populated before returning from creation functions.
 
 ### PostgreSQL List() returning empty results (FIXED)
 
@@ -411,10 +407,10 @@ Each implementation can have different constructor signatures:
 ```go
 // Different constructors, same interface
 func postgres.New(cfg *config.Config) (*Storage, error)
-func local.New(cfg *config.Config) (*Storage, error)
+func hetzner.New(cfg *config.Config) (CloudProvider, error)
 ```
 
-The calling code (lab.NewManager) switches between them based on config.
+The calling code (factory functions) switches between them based on config. Each implementation returns the interface type, keeping the calling code generic.
 
 ## Testing approach
 
