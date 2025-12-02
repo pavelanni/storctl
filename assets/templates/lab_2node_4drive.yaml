@@ -6,8 +6,8 @@ metadata:
     project: aistor
 spec:
   ttl: 1h
-  provider: lima
-  location: local
+  provider: hetzner
+  location: nbg1
   servers:
   - name: cp
     type: cx22

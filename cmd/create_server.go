@@ -103,29 +103,25 @@ func createServer(server *types.Server) (*types.Server, error) {
 	labels["delete_after"] = timeutil.FormatDeleteAfter(time.Now().Add(duration))
 	labels["owner"] = labelutil.SanitizeValue(cfg.Owner)
 
-	if server.Spec.Provider != "lima" {
-		// create the ssh keys locally
-		for _, sshKeyName := range server.Spec.SSHKeyNames {
-			_, err := sshManager.CreateLocalKeyPair(sshKeyName)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create local ssh key: %w", err)
-			}
-		}
-		sshKeys, err = providerSvc.KeyNamesToSSHKeys(server.Spec.SSHKeyNames, options.SSHKeyCreateOpts{
-			Labels: labels,
-		})
+	// create the ssh keys locally
+	for _, sshKeyName := range server.Spec.SSHKeyNames {
+		_, err := sshManager.CreateLocalKeyPair(sshKeyName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to upload ssh keys to the cloud: %w", err)
+			return nil, fmt.Errorf("failed to create local ssh key: %w", err)
 		}
+	}
+	sshKeys, err = providerSvc.KeyNamesToSSHKeys(server.Spec.SSHKeyNames, options.SSHKeyCreateOpts{
+		Labels: labels,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to upload ssh keys to the cloud: %w", err)
 	}
 
 	opts, err := providerSvc.ServerToCreateOpts(server)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert server to create opts: %w", err)
 	}
-	if server.Spec.Provider != "lima" {
-		opts.SSHKeys = sshKeys
-	}
+	opts.SSHKeys = sshKeys
 	result, err := providerSvc.CreateServer(opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create server: %w", err)

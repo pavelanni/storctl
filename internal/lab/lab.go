@@ -17,7 +17,6 @@ import (
 	"github.com/pavelanni/storctl/internal/provider/options"
 	"github.com/pavelanni/storctl/internal/ssh"
 	"github.com/pavelanni/storctl/internal/storage"
-	"github.com/pavelanni/storctl/internal/storage/local"
 	"github.com/pavelanni/storctl/internal/storage/postgres"
 	"github.com/pavelanni/storctl/internal/types"
 	"github.com/pavelanni/storctl/internal/util/serverchecker"
@@ -53,18 +52,13 @@ func NewManager(provider provider.CloudProvider, cfg *config.Config) (*ManagerSv
 	var err error
 
 	switch cfg.Storage.Type {
-	case "postgres":
+	case "postgres", "": // empty string defaults to postgres
 		storage, err = postgres.New(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create lab storage: %w", err)
 		}
-	case "local", "": // empty string defaults to local for backward compatibility
-		storage, err = local.New(cfg)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create lab storage: %w", err)
-		}
 	default:
-		return nil, fmt.Errorf("invalid storage type: %s", cfg.Storage.Type)
+		return nil, fmt.Errorf("invalid storage type: %s (only 'postgres' is supported)", cfg.Storage.Type)
 	}
 	return &ManagerSvc{Storage: storage, Provider: provider, SshManager: sshManager, Logger: logger.Get()}, nil
 }
@@ -77,16 +71,13 @@ func (m *ManagerSvc) Create(lab *types.Lab) error {
 		return fmt.Errorf("provider is required for Create operation")
 	}
 	switch lab.Spec.Provider {
-	case "lima":
-		err := m.createLabLima(lab)
-		if err != nil {
-			return fmt.Errorf("failed to create lab: %w", err)
-		}
 	case "hetzner":
 		err := m.createLabHetzner(lab)
 		if err != nil {
 			return fmt.Errorf("failed to create lab: %w", err)
 		}
+	default:
+		return fmt.Errorf("unsupported provider: %s", lab.Spec.Provider)
 	}
 	m.Logger.Debug("created lab", "lab", lab)
 	m.Logger.Debug("lab servers:")
@@ -173,10 +164,10 @@ func (m *ManagerSvc) Delete(labName string, force bool) error {
 	}
 	var err error
 	switch m.Provider.Name() {
-	case "lima":
-		err = m.deleteLabLima(labName, force)
 	case "hetzner":
 		err = m.deleteLabHetzner(labName, force)
+	default:
+		return fmt.Errorf("unsupported provider: %s", m.Provider.Name())
 	}
 	if err != nil {
 		return fmt.Errorf("failed to delete lab: %w", err)
@@ -239,87 +230,6 @@ func (m *ManagerSvc) getLabFromProvider(labName string) (*types.Lab, error) {
 		lab.Spec.Provider = servers[0].Spec.Provider
 	}
 	return lab, nil
-}
-
-func (m *ManagerSvc) createLabLima(lab *types.Lab) error {
-	volumes := lab.Spec.Volumes
-	volumesStatus := make([]*types.Volume, len(volumes))
-	for i, volume := range volumes {
-		fmt.Printf("Creating volume %s of size %dGB...\n", strings.Join([]string{lab.Name, volume.Name}, "-"), volume.Size)
-		volume, err := m.Provider.CreateVolume(options.VolumeCreateOpts{
-			Name:       strings.Join([]string{lab.Name, volume.Name}, "-"),
-			Size:       volume.Size,
-			ServerName: volume.Server,
-			Automount:  volume.Automount,
-			Format:     volume.Format,
-			Labels:     lab.Labels,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to create volume: %w", err)
-		}
-		volumesStatus[i] = volume
-		m.Logger.Debug("created volume", "volume", volume)
-	}
-	lab.Status.Volumes = volumesStatus
-	m.Logger.Debug("created volumes:")
-	for _, volume := range volumesStatus {
-		m.Logger.Debug("volume", "volume", volume)
-	}
-	additionalDisks := make(map[string][]options.AdditionalDisk)
-	for _, volume := range volumes {
-		labServerName := strings.Join([]string{lab.Name, volume.Server}, "-")
-		additionalDisks[labServerName] = append(additionalDisks[labServerName], options.AdditionalDisk{
-			Name:   strings.Join([]string{lab.Name, volume.Name}, "-"),
-			Format: false,
-		})
-	}
-	specServers := lab.Spec.Servers
-	serversStatus := make([]*types.Server, len(specServers))
-	for i, serverSpec := range specServers {
-		s := &types.Server{
-			TypeMeta: types.TypeMeta{
-				Kind:       "Server",
-				APIVersion: "v1",
-			},
-			ObjectMeta: types.ObjectMeta{
-				Name:   strings.Join([]string{lab.Name, serverSpec.Name}, "-"),
-				Labels: lab.Labels,
-			},
-			Spec: types.ServerSpec{
-				Location:   lab.Spec.Location,
-				Provider:   lab.Spec.Provider,
-				ServerType: serverSpec.ServerType,
-				Image:      serverSpec.Image,
-			},
-		}
-		serverAdditionalDisks, ok := additionalDisks[s.Name]
-		if !ok {
-			serverAdditionalDisks = []options.AdditionalDisk{}
-		}
-		fmt.Printf("Creating server %s with additional disks: %v\n", s.Name, serverAdditionalDisks)
-		serverCreateOpts := options.ServerCreateOpts{
-			Name:            s.Name,
-			Type:            s.Spec.ServerType,
-			Image:           s.Spec.Image,
-			Location:        s.Spec.Location,
-			Provider:        s.Spec.Provider,
-			Labels:          s.Labels,
-			AdditionalDisks: serverAdditionalDisks,
-		}
-		logger.Get().Debug("creating server", "config", serverCreateOpts)
-		server, err := m.Provider.CreateServer(serverCreateOpts)
-		if err != nil {
-			return fmt.Errorf("failed to create server: %w", err)
-		}
-		m.Logger.Debug("created server", "server", server)
-		serversStatus[i] = server
-	}
-	lab.Status.Servers = serversStatus
-	m.Logger.Debug("created servers:")
-	for _, server := range serversStatus {
-		m.Logger.Debug("server", "server", server)
-	}
-	return nil
 }
 
 func (m *ManagerSvc) createLabHetzner(lab *types.Lab) error {
@@ -464,39 +374,6 @@ func (m *ManagerSvc) createLabHetzner(lab *types.Lab) error {
 	// Assign volumes to lab status
 	lab.Status.Volumes = createdVolumes
 
-	return nil
-}
-
-func (m *ManagerSvc) deleteLabLima(labName string, force bool) error {
-	lab, err := m.Get(labName)
-	if err != nil {
-		return fmt.Errorf("failed to get lab: %w", err)
-	}
-	// in Lima, delete servers first
-	for _, server := range lab.Status.Servers {
-		// delete server's ssh keys
-		for _, sshKeyName := range server.Spec.SSHKeyNames {
-			m.Logger.Info("deleting ssh key", "key", sshKeyName)
-			status := m.Provider.DeleteSSHKey(sshKeyName, force)
-			if status.Error != nil {
-				return fmt.Errorf("failed to delete ssh key %s: %w", sshKeyName, status.Error)
-			}
-		}
-		m.Logger.Info("deleting server", "server", server.Name)
-		status := m.Provider.DeleteServer(server.Name, force)
-		if status.Error != nil {
-			return fmt.Errorf("failed to delete server %s: %w", server.Name, status.Error)
-		}
-	}
-
-	// delete volumes after servers
-	for _, volume := range lab.Status.Volumes {
-		m.Logger.Info("deleting volume", "volume", volume.Name)
-		status := m.Provider.DeleteVolume(volume.Name, force)
-		if status.Error != nil {
-			return fmt.Errorf("failed to delete volume %s: %w", volume.Name, status.Error)
-		}
-	}
 	return nil
 }
 

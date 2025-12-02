@@ -61,11 +61,11 @@ const (
 
 // Provider related constants
 const (
-	// DefaultLocalProvider is the default provider for a local machine
-	DefaultLocalProvider = "lima"
+	// DefaultLocalProvider is the default provider (kept for backwards compatibility, now defaults to Hetzner)
+	DefaultLocalProvider = "hetzner"
 
 	// DefaultLocalLocation is the default location
-	DefaultLocalLocation = "local"
+	DefaultLocalLocation = "nbg1"
 
 	// DefaultCloudProvider is the default cloud provider
 	DefaultCloudProvider = "hetzner"

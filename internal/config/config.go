@@ -6,8 +6,6 @@ package config
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/spf13/viper"
 )
@@ -111,6 +109,11 @@ func LoadConfig(configPath string) (*Config, error) {
 }
 
 func setDefaults(v *viper.Viper) {
-	v.SetDefault("storage.path", filepath.Join(os.Getenv("HOME"), DefaultConfigDir, DefaultLabStorageFile))
-	v.SetDefault("storage.bucket", DefaultLabBucket)
+	// Storage defaults (PostgreSQL)
+	v.SetDefault("storage.type", "postgres")
+	v.SetDefault("storage.postgres.host", "localhost")
+	v.SetDefault("storage.postgres.port", "5432")
+	v.SetDefault("storage.postgres.database", "storctl_dev")
+	v.SetDefault("storage.postgres.user", "postgres")
+	v.SetDefault("storage.postgres.password", "storctl")
 }

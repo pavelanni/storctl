@@ -99,7 +99,7 @@ func createLab(lab *types.Lab, opts CreateOpts) (*types.Lab, error) {
 	}
 	lab.Status = labUpdated.Status
 
-	if lab.Spec.Provider != "lima" && !opts.SkipDNS { // we don't need DNS records for local VMs
+	if !opts.SkipDNS {
 		fmt.Printf("Lab %s: Creating DNS records...\n", lab.Name)
 		if err := addDNSRecords(lab); err != nil {
 			return nil, err

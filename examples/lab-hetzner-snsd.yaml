@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Lab
+metadata:
+  name: aistor-lab1
+  labels:
+    project: aistor
+spec:
+  ttl: 24h
+  provider: hetzner
+  location: nbg1
+  servers:
+  - name: node-01 # worker node
+    role: worker
+    type: cx22
+    image: ubuntu-24.04

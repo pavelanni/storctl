@@ -39,12 +39,6 @@ func (m *ManagerSvc) CreateAnsibleInventoryFile(lab *types.Lab) error {
 	}
 	ansibleUser := config.DefaultAdminUser
 	ansibleSSHPrivateKeyFile := filepath.Join(homeDir, config.DefaultConfigDir, config.DefaultKeysDir, strings.Join([]string{lab.Name, ansibleUser}, "-"))
-	if m.Provider.Name() == "lima" {
-		lab.Spec.CertManager = false
-		lab.Spec.LetsEncrypt = "none"
-		ansibleUser = os.Getenv("USER")
-		ansibleSSHPrivateKeyFile = filepath.Join(homeDir, ".lima", "_config", "user")
-	}
 
 	allVars := map[string]any{
 		"ansible_user":                 ansibleUser,
